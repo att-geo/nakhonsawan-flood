@@ -2,6 +2,7 @@
 """ArcGIS Pro Python Toolbox — Nakhon Sawan Flood Watch
 
 1) Build Static Layers   : DEM/HAND/Sink/CN -> hex grid + ไฟล์ static ของเว็บ
+1b) Build Upstream Basins: ลุ่มน้ำ 4 จังหวัดต้นน้ำที่ไหลเข้า นว. + จุดน้ำเข้า + เวลาเดินทาง + HAND แม่น้ำสายหลัก
 2) Run Update (local)    : รัน pipeline near-realtime บนเครื่อง แล้วโหลดผลเป็น feature class ลงแผนที่
 3) Publish to GitHub     : git add/commit/push โฟลเดอร์เว็บ (ต้องมี git + สิทธิ์ push)
 """
@@ -28,7 +29,7 @@ class Toolbox:
     def __init__(self):
         self.label = "Nakhon Sawan Flood Watch"
         self.alias = "nsflood"
-        self.tools = [BuildStatic, RunUpdate, PublishGitHub]
+        self.tools = [BuildStatic, BuildUpstream, RunUpdate, PublishGitHub]
 
 
 class BuildStatic:
@@ -52,6 +53,30 @@ class BuildStatic:
         import build_static; importlib.reload(build_static)
         v = [p.valueAsText for p in params]
         build_static.build(v[0], v[1], float(v[2]), float(v[3]), float(v[4]), log=arcpy.AddMessage)
+
+
+class BuildUpstream:
+    def __init__(self):
+        self.label = "1b) Build Upstream Basins (กำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์)"
+        self.description = ("DEM ภูมิภาค 90 ม. -> หาพื้นที่ใน 4 จังหวัดที่ไหลเข้านครสวรรค์, จุดน้ำเข้า, เวลาเดินทาง, zone สำหรับ "
+                            "hydrograph และคำนวณ HAND แม่น้ำสายหลักใน นว. ใหม่โดยนับพื้นที่รับน้ำจากต้นน้ำ (ต้องรัน tool 1 ก่อน)")
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        try:
+            proj = os.path.dirname(arcpy.mp.ArcGISProject("CURRENT").filePath)
+        except Exception:  # noqa
+            proj = None
+        return [_p("project_dir", "Project folder", "DEFolder", value=proj),
+                _p("repo_dir", "Web app folder (repo)", "DEFolder", value=REPO_DEFAULT),
+                _p("cell", "Regional cell size (m)", "GPDouble", value=90.0),
+                _p("v_ms", "ความเร็วการไหลเฉลี่ย (ม./วิ) สำหรับเวลาเดินทาง", "GPDouble", value=0.7),
+                _p("major_km2", "พื้นที่รับน้ำขั้นต่ำของแม่น้ำสายหลัก (km²)", "GPDouble", value=1000.0)]
+
+    def execute(self, params, messages):
+        import build_upstream; importlib.reload(build_upstream)
+        v = [p.valueAsText for p in params]
+        build_upstream.build_upstream(v[0], v[1], float(v[2]), float(v[3]), major_km2=float(v[4]), log=arcpy.AddMessage)
 
 
 class RunUpdate:

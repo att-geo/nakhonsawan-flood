@@ -31,6 +31,7 @@
 
     <nav class="tabs" role="tablist">
       <button role="tab" data-tab="district" class="active">อำเภอ</button>
+      <button role="tab" data-tab="upstream">ต้นน้ำ</button>
       <button role="tab" data-tab="stations">ระดับน้ำ</button>
       <button role="tab" data-tab="rain">ฝน</button>
       <button role="tab" data-tab="windy">Windy</button>
@@ -40,6 +41,17 @@
       <section data-pane="district" class="pane active">
         <table class="tbl" id="distTable"><thead><tr><th>อำเภอ</th><th title="พื้นที่ท่วมขัง (≥25 ซม.) ตอนนี้">ตอนนี้<br><small>กม²</small></th><th title="คาดการณ์สูงสุดใน 72 ชม.">72 ชม.<br><small>กม²</small></th><th>ฝน 24 ชม.<br><small>มม.</small></th></tr></thead><tbody></tbody></table>
         <p class="note">คลิกชื่ออำเภอเพื่อซูมไปยังพื้นที่</p>
+      </section>
+      <section data-pane="upstream" class="pane">
+        <div id="upKpi" class="kpis kpis-in"></div>
+        <h3>แม่น้ำสายหลักที่ไหลเข้า/ผ่านนครสวรรค์</h3>
+        <div id="upRivers"></div>
+        <h3>น้ำจาก 4 จังหวัดต้นน้ำ (ส่วนที่ไหลเข้านครสวรรค์)</h3>
+        <table class="tbl" id="upProv"><thead><tr><th>จังหวัด</th><th title="พื้นที่ที่ไหลลงนครสวรรค์">พื้นที่<br><small>กม²</small></th><th>ฝน 7 วัน<br><small>มม.</small></th><th>พยากรณ์<br><small>72 ชม.</small></th><th title="ปริมาตรน้ำท่าที่จะไหลเข้า นว. ใน 72 ชม.">เข้า นว. 72 ชม.<br><small>ล้าน ลบ.ม.</small></th></tr></thead><tbody></tbody></table>
+        <div id="upChart" class="chart"></div>
+        <h3>สถานีวัดน้ำต้นน้ำ (กรมชลประทาน)</h3>
+        <div id="upGauges" class="list"></div>
+        <p class="note" id="upNote"></p>
       </section>
       <section data-pane="stations" class="pane">
         <div id="wlList" class="list"></div>
@@ -76,6 +88,7 @@
           <option value="p24">ฝน 24 ชม. ที่ผ่านมา</option>
           <option value="p7d">ฝน 7 วันที่ผ่านมา</option>
           <option value="f72">ฝนพยากรณ์ 72 ชม.</option>
+          <option value="u72">น้ำล้นตลิ่ง/ต้นน้ำ สูงสุด 72 ชม.</option>
         </select>
       </label>
     </div>

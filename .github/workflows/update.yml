@@ -43,7 +43,7 @@ jobs:
         continue-on-error: true
         run: |
           base="${{ steps.pages.outputs.base_url }}"
-          for f in meta status frames stations districts series; do
+          for f in meta status frames stations districts series upstream gauges_hist rain_cache; do
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
           curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true

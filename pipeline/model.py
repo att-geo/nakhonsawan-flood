@@ -60,8 +60,9 @@ class Params:
         self.is_water = self.f_water > 0.5                              # แหล่งน้ำถาวร (ไม่นับเป็นน้ำท่วม)
 
 
-def simulate(P, prm, backwater=None):
-    """P: array [T, N] ฝนรายชั่วโมง (mm). คืน depth_cm [T, N] (น้ำท่วมขังจากฝน)"""
+def simulate(P, prm, backwater=None, ext=None):
+    """P: array [T, N] ฝนรายชั่วโมง (mm); ext: [T, N] น้ำไหลเข้าจากนอกจังหวัด (mm/h ต่อ hex)
+    คืน depth_cm [T, N] (น้ำท่วมขังจากฝน + ลำน้ำสาขาจากต้นน้ำ)"""
     T, N = P.shape
     tres = prm.tres.copy(); qc = prm.qc.copy()
     if backwater is not None:
@@ -83,6 +84,8 @@ def simulate(P, prm, backwater=None):
 
     for t in range(T):
         p = P[t]
+        if ext is not None:
+            inflow = inflow + ext[t]
         # --- event bookkeeping / AMC
         start = (p > 0.1) & (dry >= 12)
         if start.any():

@@ -16,10 +16,17 @@ flowchart LR
     CN --> HEX
   end
   HEX -->|data/static/*.json, png| REPO[(GitHub repo)]
+  subgraph PRO2["ArcGIS Pro — ลุ่มน้ำต้นน้ำ"]
+    DEM2[DEM ภูมิภาค 90 ม.<br/>5 จังหวัด] --> UP[ทางไหลเข้า นว. · จุดน้ำเข้า<br/>เวลาเดินทาง · zones]
+    UP --> HM[HAND แม่น้ำสายหลัก<br/>รวมพื้นที่ต้นน้ำ]
+  end
+  UP -->|upstream_*.json| REPO
+  HM --> REPO
   subgraph GHA["GitHub Actions — ทุกชั่วโมง"]
     OM[Open-Meteo<br/>ฝนรายชม. −30 วัน…+72 ชม.] --> MOD
     TWR[ThaiWater ฝน 24 ชม.<br/>ปรับแก้ฝนแบบจำลอง] --> MOD
-    TWL[ThaiWater ระดับน้ำ/ตลิ่ง] --> MOD
+    TWL[ThaiWater ระดับน้ำ/ตลิ่ง<br/>ปริมาณน้ำ RID 5 จังหวัด] --> MOD
+    MOD2[น้ำหลาก 4 จังหวัดต้นน้ำ<br/>SCS-CN + lag + level-pool] --> MOD
     GIS[GISTDA flood extent<br/>ถ้ามี API key] --> OUT
     MOD[โมเดล SCS-CN +<br/>hex routing + HAND riverine] --> OUT[data/live/*.json]
   end
@@ -42,6 +49,7 @@ flowchart LR
 - แผนที่ hex 1 กม² แสดงระดับน้ำท่วมขัง 5 ชั้น พร้อม **แถบเวลา −7 วัน ถึง +72 ชม.** (กดเล่นเป็นแอนิเมชันได้)
 - โหมดแผนที่: ท่วมขังตอนนี้ · สูงสุดใน 72 ชม. · ระยะเวลาท่วม · ฝน 24 ชม./7 วัน · ฝนพยากรณ์ 72 ชม.
 - คลิก hex: ความลึก, สาเหตุ (ฝน/ล้นตลิ่ง), **ท่วมมาแล้วกี่ชั่วโมง, คาดว่าจะลดลงเมื่อไร**, ฝนสะสม, ค่า HAND/CN จาก ArcGIS Pro
+- **แท็บต้นน้ำ**: น้ำจากกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ — ปริมาตรที่จะไหลเข้า นว. ใน 72 ชม. รายจังหวัด, hydrograph + พยากรณ์ของปิง/น่าน-ยม/แม่วงก์/เจ้าพระยา เทียบความจุลำน้ำ, พื้นที่ที่ราบลุ่มน้ำล้นตลิ่ง, แผนที่ลุ่มน้ำและจุดน้ำเข้า
 - สรุปรายอำเภอ, สถานีระดับน้ำ (สถานการณ์ตามตลิ่ง), สถานีวัดฝน, กราฟฝนรายชั่วโมง, แท็บ Windy (ฝน/ฝนสะสม/เรดาร์/เมฆ)
 - ชั้นพื้นที่ลุ่มต่ำ (HAND) จาก ArcGIS Pro, ชั้นน้ำท่วมจากดาวเทียม GISTDA (ถ้าเปิดใช้)
 - รีเฟรชข้อมูลเองทุก 5 นาที · ใช้บนมือถือได้
@@ -68,8 +76,9 @@ flowchart LR
 1. Catalog → Toolboxes → Add Toolbox → `arcgis/NakhonSawanFlood.pyt`
 2. **1) Build Static Layers** — ดาวน์โหลด DEM/WorldCover/ขอบเขต, วิเคราะห์, export ลง `data/static/` (ประมาณ 10–20 นาที)
    ต้องการความละเอียดขึ้น: เปลี่ยน DEM เป็น DEM 5 ม. ของ พด./LiDAR หรือ FABDEM ใน `build_static.py` ขั้นที่ 2
-3. **2) Run Update (local)** — รันโมเดลบนเครื่อง ได้ feature class `hex_status` พร้อม symbology สำหรับทำแผนที่/รายงาน
-4. **3) Publish to GitHub** — push ชั้นข้อมูลใหม่ขึ้น repo (Actions จะ deploy ให้)
+3. **1b) Build Upstream Basins** — DEM ภูมิภาค 5 จังหวัด หาพื้นที่ใน 4 จังหวัดต้นน้ำที่ไหลเข้า นว., จุดน้ำเข้า, เวลาเดินทาง และคำนวณ HAND แม่น้ำสายหลักใหม่ (ประมาณ 20–30 นาที)
+4. **2) Run Update (local)** — รันโมเดลบนเครื่อง ได้ feature class `hex_status` พร้อม symbology สำหรับทำแผนที่/รายงาน
+5. **3) Publish to GitHub** — push ชั้นข้อมูลใหม่ขึ้น repo (Actions จะ deploy ให้)
 
 รันโมเดลจาก command line: `python pipeline/run_update.py --site .` แล้วเปิดเว็บทดสอบด้วย `python -m http.server 8000`
 
@@ -78,10 +87,12 @@ flowchart LR
 ```
 index.html, assets/app.js, assets/app.css   หน้าเว็บ
 data/static/   hex.geojson, params.json, districts.geojson, province.geojson,
-               susceptibility.png/.json, stations_ref.json        ← จาก ArcGIS Pro
-data/live/     meta, status, frames, stations, districts, series (.json)   ← จาก pipeline ทุกชั่วโมง
-pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดล)
-arcgis/        build_static.py, NakhonSawanFlood.pyt
+               susceptibility.png/.json, stations_ref.json,
+               upstream_zones.json, upstream_entries.json, upstream_basins.geojson   ← จาก ArcGIS Pro
+data/live/     meta, status, frames, stations, districts, series, upstream,
+               gauges_hist, rain_cache (.json)                             ← จาก pipeline ทุกชั่วโมง
+pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดลน้ำท่วมขัง), upstream.py (น้ำหลากจากต้นน้ำ)
+arcgis/        build_static.py, build_upstream.py, NakhonSawanFlood.pyt
 docs/          ARCHITECTURE.md
 ```
 

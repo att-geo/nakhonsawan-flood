@@ -1,0 +1,3373 @@
+{
+"entries": [
+{
+"hex": 5323,
+"area_km2": 11019.5,
+"by_prov": {
+"65": 8560.9,
+"66": 1194.9,
+"67": 1263.7
+},
+"lon": 100.30523,
+"lat": 15.93526,
+"amphoe": "ชุมแสง",
+"major": true,
+"river": "แม่น้ำน่าน",
+"gauge": "N.67"
+},
+{
+"hex": 1826,
+"area_km2": 3761.6,
+"by_prov": {
+"62": 3761.6
+},
+"lon": 99.87106,
+"lat": 16.05402,
+"amphoe": "บรรพตพิสัย",
+"major": true,
+"river": "แม่น้ำปิง",
+"gauge": "P.17"
+},
+{
+"hex": 4596,
+"area_km2": 3369.7,
+"by_prov": {
+"62": 702.4,
+"65": 1161.3,
+"66": 1505.9
+},
+"lon": 100.20952,
+"lat": 15.92125,
+"amphoe": "ชุมแสง",
+"major": true,
+"river": "แม่น้ำยม",
+"gauge": "Y.5"
+},
+{
+"hex": 5644,
+"area_km2": 1995.9,
+"by_prov": {
+"66": 731.7,
+"67": 1264.2
+},
+"lon": 100.34,
+"lat": 15.93505,
+"amphoe": "ชุมแสง",
+"major": true,
+"river": "แม่น้ำน่าน",
+"gauge": "N.67"
+},
+{
+"hex": 2175,
+"area_km2": 736.7,
+"by_prov": {
+"62": 736.7
+},
+"lon": 99.92384,
+"lat": 16.18007,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1700,
+"area_km2": 535.6,
+"by_prov": {
+"62": 535.6
+},
+"lon": 99.84486,
+"lat": 16.02984,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5246,
+"area_km2": 364.5,
+"by_prov": {
+"66": 364.5
+},
+"lon": 100.29651,
+"lat": 15.93046,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1578,
+"area_km2": 213.1,
+"by_prov": {
+"62": 213.1
+},
+"lon": 99.81866,
+"lat": 16.00566,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9340,
+"area_km2": 200.9,
+"by_prov": {
+"67": 200.9
+},
+"lon": 100.80754,
+"lat": 15.72772,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1403,
+"area_km2": 182.1,
+"by_prov": {
+"62": 182.1
+},
+"lon": 99.7749,
+"lat": 15.93296,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2813,
+"area_km2": 156.7,
+"by_prov": {
+"62": 154.0,
+"66": 2.7
+},
+"lon": 99.99426,
+"lat": 16.33516,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4535,
+"area_km2": 147.4,
+"by_prov": {
+"66": 147.4
+},
+"lon": 100.20092,
+"lat": 15.93587,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9420,
+"area_km2": 136.3,
+"by_prov": {
+"62": 136.3
+},
+"lon": 99.17496,
+"lat": 15.92943,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1135,
+"area_km2": 110.2,
+"by_prov": {
+"62": 110.2
+},
+"lon": 99.63542,
+"lat": 15.81685,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9255,
+"area_km2": 98.9,
+"by_prov": {
+"67": 98.9
+},
+"lon": 100.7823,
+"lat": 15.82018,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7931,
+"area_km2": 94.2,
+"by_prov": {
+"66": 93.5,
+"67": 0.8
+},
+"lon": 100.58346,
+"lat": 15.94311,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2394,
+"area_km2": 71.3,
+"by_prov": {
+"62": 71.3
+},
+"lon": 99.95016,
+"lat": 16.22366,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9485,
+"area_km2": 61.2,
+"by_prov": {
+"62": 61.2
+},
+"lon": 99.20975,
+"lat": 15.93911,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9320,
+"area_km2": 50.9,
+"by_prov": {
+"67": 50.9
+},
+"lon": 100.79899,
+"lat": 15.74235,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 23,
+"area_km2": 45.4,
+"by_prov": {
+"62": 45.4
+},
+"lon": 99.32276,
+"lat": 15.9244,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1325,
+"area_km2": 45.2,
+"by_prov": {
+"62": 45.2
+},
+"lon": 99.74854,
+"lat": 15.8602,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8200,
+"area_km2": 41.4,
+"by_prov": {
+"66": 39.6,
+"67": 1.8
+},
+"lon": 100.61823,
+"lat": 15.94285,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1928,
+"area_km2": 39.0,
+"by_prov": {
+"62": 39.0
+},
+"lon": 99.8885,
+"lat": 16.06366,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 355,
+"area_km2": 37.1,
+"by_prov": {
+"62": 37.1
+},
+"lon": 99.42707,
+"lat": 15.9145,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6956,
+"area_km2": 31.1,
+"by_prov": {
+"66": 31.1
+},
+"lon": 100.47036,
+"lat": 15.92934,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1248,
+"area_km2": 30.0,
+"by_prov": {
+"62": 30.0
+},
+"lon": 99.7049,
+"lat": 15.80692,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7509,
+"area_km2": 28.5,
+"by_prov": {
+"66": 28.5
+},
+"lon": 100.53124,
+"lat": 15.93378,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1377,
+"area_km2": 26.8,
+"by_prov": {
+"62": 26.8
+},
+"lon": 99.76607,
+"lat": 15.899,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2441,
+"area_km2": 22.8,
+"by_prov": {
+"62": 22.8
+},
+"lon": 99.95049,
+"lat": 16.29165,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2316,
+"area_km2": 22.2,
+"by_prov": {
+"62": 22.2
+},
+"lon": 99.94138,
+"lat": 16.20913,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 585,
+"area_km2": 21.4,
+"by_prov": {
+"62": 21.4
+},
+"lon": 99.48794,
+"lat": 15.91923,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7433,
+"area_km2": 20.8,
+"by_prov": {
+"66": 20.8
+},
+"lon": 100.52251,
+"lat": 15.92898,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6245,
+"area_km2": 17.2,
+"by_prov": {
+"66": 17.2
+},
+"lon": 100.40075,
+"lat": 15.9201,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2109,
+"area_km2": 16.9,
+"by_prov": {
+"62": 16.9
+},
+"lon": 99.91498,
+"lat": 16.14611,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9539,
+"area_km2": 16.6,
+"by_prov": {
+"62": 16.6
+},
+"lon": 99.23581,
+"lat": 15.92451,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9404,
+"area_km2": 15.0,
+"by_prov": {
+"62": 15.0
+},
+"lon": 99.16626,
+"lat": 15.92458,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 95,
+"area_km2": 13.2,
+"by_prov": {
+"62": 13.2
+},
+"lon": 99.34884,
+"lat": 15.9195,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1222,
+"area_km2": 12.6,
+"by_prov": {
+"62": 12.6
+},
+"lon": 99.68749,
+"lat": 15.79726,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1985,
+"area_km2": 11.3,
+"by_prov": {
+"62": 11.3
+},
+"lon": 99.89731,
+"lat": 16.08791,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5564,
+"area_km2": 10.5,
+"by_prov": {
+"66": 10.5
+},
+"lon": 100.33134,
+"lat": 15.93996,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1197,
+"area_km2": 9.2,
+"by_prov": {
+"62": 9.2
+},
+"lon": 99.67005,
+"lat": 15.77789,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1502,
+"area_km2": 8.6,
+"by_prov": {
+"62": 8.6
+},
+"lon": 99.80119,
+"lat": 15.98629,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5981,
+"area_km2": 6.9,
+"by_prov": {
+"66": 6.9
+},
+"lon": 100.37477,
+"lat": 15.93483,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4652,
+"area_km2": 6.6,
+"by_prov": {
+"62": 6.6
+},
+"lon": 99.12277,
+"lat": 15.90032,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2512,
+"area_km2": 6.5,
+"by_prov": {
+"62": 6.5
+},
+"lon": 99.95922,
+"lat": 16.29647,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 622,
+"area_km2": 6.3,
+"by_prov": {
+"62": 6.3
+},
+"lon": 99.49665,
+"lat": 15.92407,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1307,
+"area_km2": 6.0,
+"by_prov": {
+"62": 6.0
+},
+"lon": 99.73976,
+"lat": 15.83595,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9290,
+"area_km2": 6.0,
+"by_prov": {
+"67": 6.0
+},
+"lon": 100.79077,
+"lat": 15.79583,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 146,
+"area_km2": 5.8,
+"by_prov": {
+"62": 5.8
+},
+"lon": 99.36622,
+"lat": 15.91947,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4415,
+"area_km2": 5.3,
+"by_prov": {
+"66": 5.3
+},
+"lon": 100.18359,
+"lat": 15.94568,
+"amphoe": "เก้าเลี้ยว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9291,
+"area_km2": 5.0,
+"by_prov": {
+"67": 5.0
+},
+"lon": 100.79069,
+"lat": 15.78612,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2107,
+"area_km2": 4.6,
+"by_prov": {
+"62": 4.6
+},
+"lon": 99.91507,
+"lat": 16.16554,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4847,
+"area_km2": 4.6,
+"by_prov": {
+"66": 4.6
+},
+"lon": 100.24429,
+"lat": 15.92105,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1982,
+"area_km2": 4.5,
+"by_prov": {
+"62": 4.5
+},
+"lon": 99.89744,
+"lat": 16.11705,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1306,
+"area_km2": 4.3,
+"by_prov": {
+"62": 4.3
+},
+"lon": 99.7398,
+"lat": 15.84566,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2382,
+"area_km2": 4.3,
+"by_prov": {
+"62": 4.3
+},
+"lon": 99.94166,
+"lat": 16.26741,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9619,
+"area_km2": 4.0,
+"by_prov": {
+"62": 4.0
+},
+"lon": 99.27057,
+"lat": 15.90504,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3772,
+"area_km2": 3.9,
+"by_prov": {
+"66": 3.9
+},
+"lon": 100.0975,
+"lat": 16.10154,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9578,
+"area_km2": 3.6,
+"by_prov": {
+"62": 3.6
+},
+"lon": 99.25319,
+"lat": 15.91478,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 232,
+"area_km2": 3.4,
+"by_prov": {
+"62": 3.4
+},
+"lon": 99.3923,
+"lat": 15.91457,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9372,
+"area_km2": 3.2,
+"by_prov": {
+"67": 3.2
+},
+"lon": 100.83285,
+"lat": 15.64496,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9467,
+"area_km2": 3.2,
+"by_prov": {
+"62": 3.2
+},
+"lon": 99.20105,
+"lat": 15.93426,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2729,
+"area_km2": 3.1,
+"by_prov": {
+"62": 3.1
+},
+"lon": 99.98552,
+"lat": 16.33035,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 516,
+"area_km2": 3.0,
+"by_prov": {
+"62": 3.0
+},
+"lon": 99.47051,
+"lat": 15.89984,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9336,
+"area_km2": 3.0,
+"by_prov": {
+"67": 3.0
+},
+"lon": 100.79763,
+"lat": 15.58699,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3843,
+"area_km2": 2.9,
+"by_prov": {
+"66": 2.9
+},
+"lon": 100.10612,
+"lat": 16.08693,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6653,
+"area_km2": 2.7,
+"by_prov": {
+"62": 2.7
+},
+"lon": 99.13147,
+"lat": 15.90517,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1184,
+"area_km2": 2.6,
+"by_prov": {
+"62": 2.6
+},
+"lon": 99.66138,
+"lat": 15.78277,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4595,
+"area_km2": 2.6,
+"by_prov": {
+"66": 2.6
+},
+"lon": 100.20958,
+"lat": 15.93096,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7356,
+"area_km2": 2.6,
+"by_prov": {
+"66": 2.6
+},
+"lon": 100.51378,
+"lat": 15.92419,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 733,
+"area_km2": 2.5,
+"by_prov": {
+"62": 2.5
+},
+"lon": 99.52272,
+"lat": 15.91915,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2043,
+"area_km2": 2.5,
+"by_prov": {
+"62": 2.5
+},
+"lon": 99.90625,
+"lat": 16.14129,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7280,
+"area_km2": 2.5,
+"by_prov": {
+"66": 2.5
+},
+"lon": 100.50505,
+"lat": 15.91939,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 24,
+"area_km2": 2.3,
+"by_prov": {
+"62": 2.3
+},
+"lon": 99.32274,
+"lat": 15.91469,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 0,
+"area_km2": 2.2,
+"by_prov": {
+"62": 2.2
+},
+"lon": 99.31404,
+"lat": 15.90984,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4911,
+"area_km2": 2.2,
+"by_prov": {
+"66": 2.2
+},
+"lon": 100.25289,
+"lat": 15.90644,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8000,
+"area_km2": 2.2,
+"by_prov": {
+"66": 2.2
+},
+"lon": 100.59219,
+"lat": 15.9479,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9375,
+"area_km2": 2.2,
+"by_prov": {
+"62": 2.2
+},
+"lon": 99.14885,
+"lat": 15.90516,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9389,
+"area_km2": 2.2,
+"by_prov": {
+"62": 2.2
+},
+"lon": 99.15756,
+"lat": 15.91973,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1504,
+"area_km2": 2.1,
+"by_prov": {
+"62": 2.1
+},
+"lon": 99.80111,
+"lat": 15.96687,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1984,
+"area_km2": 2.1,
+"by_prov": {
+"62": 2.1
+},
+"lon": 99.89735,
+"lat": 16.09762,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5248,
+"area_km2": 2.1,
+"by_prov": {
+"66": 2.1
+},
+"lon": 100.29638,
+"lat": 15.91104,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9135,
+"area_km2": 2.1,
+"by_prov": {
+"67": 2.1
+},
+"lon": 100.75687,
+"lat": 15.89321,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1659,
+"area_km2": 2.0,
+"by_prov": {
+"62": 2.0
+},
+"lon": 99.83614,
+"lat": 16.02502,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9257,
+"area_km2": 2.0,
+"by_prov": {
+"67": 2.0
+},
+"lon": 100.78213,
+"lat": 15.80076,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1376,
+"area_km2": 1.9,
+"by_prov": {
+"62": 1.9
+},
+"lon": 99.76611,
+"lat": 15.90871,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9678,
+"area_km2": 1.8,
+"by_prov": {
+"62": 1.8
+},
+"lon": 99.29664,
+"lat": 15.90015,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 387,
+"area_km2": 1.6,
+"by_prov": {
+"62": 1.6
+},
+"lon": 99.43576,
+"lat": 15.90963,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1235,
+"area_km2": 1.6,
+"by_prov": {
+"62": 1.6
+},
+"lon": 99.6962,
+"lat": 15.80209,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2805,
+"area_km2": 1.6,
+"by_prov": {
+"62": 1.6
+},
+"lon": 99.11407,
+"lat": 15.89547,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3163,
+"area_km2": 1.6,
+"by_prov": {
+"66": 1.6
+},
+"lon": 100.02844,
+"lat": 16.20873,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9212,
+"area_km2": 1.5,
+"by_prov": {
+"67": 1.5
+},
+"lon": 100.77417,
+"lat": 15.88336,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9338,
+"area_km2": 1.5,
+"by_prov": {
+"67": 1.5
+},
+"lon": 100.79746,
+"lat": 15.56757,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1468,
+"area_km2": 1.4,
+"by_prov": {
+"62": 1.4
+},
+"lon": 99.79236,
+"lat": 15.95233,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1783,
+"area_km2": 1.4,
+"by_prov": {
+"62": 1.4
+},
+"lon": 99.86234,
+"lat": 16.0492,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3242,
+"area_km2": 1.4,
+"by_prov": {
+"66": 1.4
+},
+"lon": 100.03702,
+"lat": 16.1844,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9373,
+"area_km2": 1.4,
+"by_prov": {
+"67": 1.4
+},
+"lon": 100.83276,
+"lat": 15.63526,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7041,
+"area_km2": 1.3,
+"by_prov": {
+"66": 1.3
+},
+"lon": 100.47901,
+"lat": 15.92443,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9089,
+"area_km2": 1.3,
+"by_prov": {
+"67": 1.3
+},
+"lon": 100.74831,
+"lat": 15.90785,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 71,
+"area_km2": 1.2,
+"by_prov": {
+"62": 1.2
+},
+"lon": 99.34013,
+"lat": 15.91466,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9285,
+"area_km2": 1.2,
+"by_prov": {
+"67": 1.2
+},
+"lon": 100.79146,
+"lat": 15.87351,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9287,
+"area_km2": 1.2,
+"by_prov": {
+"67": 1.2
+},
+"lon": 100.79129,
+"lat": 15.85409,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9639,
+"area_km2": 1.2,
+"by_prov": {
+"62": 1.2
+},
+"lon": 99.27925,
+"lat": 15.90017,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 845,
+"area_km2": 1.1,
+"by_prov": {
+"62": 1.1
+},
+"lon": 99.54879,
+"lat": 15.91423,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3700,
+"area_km2": 1.1,
+"by_prov": {
+"66": 1.1
+},
+"lon": 100.08888,
+"lat": 16.11616,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6696,
+"area_km2": 1.1,
+"by_prov": {
+"66": 1.1
+},
+"lon": 100.44424,
+"lat": 15.92466,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9173,
+"area_km2": 1.1,
+"by_prov": {
+"67": 1.1
+},
+"lon": 100.75371,
+"lat": 15.52422,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1209,
+"area_km2": 1.0,
+"by_prov": {
+"62": 1.0
+},
+"lon": 99.67879,
+"lat": 15.79243,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6508,
+"area_km2": 1.0,
+"by_prov": {
+"66": 1.0
+},
+"lon": 100.42679,
+"lat": 15.91507,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 120,
+"area_km2": 0.9,
+"by_prov": {
+"62": 0.9
+},
+"lon": 99.35754,
+"lat": 15.92435,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 550,
+"area_km2": 0.9,
+"by_prov": {
+"62": 0.9
+},
+"lon": 99.47921,
+"lat": 15.90468,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 809,
+"area_km2": 0.9,
+"by_prov": {
+"62": 0.9
+},
+"lon": 99.54011,
+"lat": 15.91911,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3318,
+"area_km2": 0.9,
+"by_prov": {
+"66": 0.9
+},
+"lon": 100.04565,
+"lat": 16.16979,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3697,
+"area_km2": 0.9,
+"by_prov": {
+"66": 0.9
+},
+"lon": 100.08903,
+"lat": 16.14529,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5403,
+"area_km2": 0.9,
+"by_prov": {
+"66": 0.9
+},
+"lon": 100.31396,
+"lat": 15.94007,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6870,
+"area_km2": 0.9,
+"by_prov": {
+"66": 0.9
+},
+"lon": 100.46163,
+"lat": 15.92455,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9090,
+"area_km2": 0.9,
+"by_prov": {
+"67": 0.9
+},
+"lon": 100.74823,
+"lat": 15.89814,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 324,
+"area_km2": 0.8,
+"by_prov": {
+"62": 0.8
+},
+"lon": 99.41837,
+"lat": 15.90966,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2452,
+"area_km2": 0.8,
+"by_prov": {
+"62": 0.8
+},
+"lon": 99.95044,
+"lat": 16.28194,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2463,
+"area_km2": 0.8,
+"by_prov": {
+"62": 0.8
+},
+"lon": 99.95039,
+"lat": 16.27223,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9358,
+"area_km2": 0.8,
+"by_prov": {
+"67": 0.8
+},
+"lon": 100.81575,
+"lat": 15.67424,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1367,
+"area_km2": 0.7,
+"by_prov": {
+"62": 0.7
+},
+"lon": 99.10538,
+"lat": 15.89061,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5175,
+"area_km2": 0.7,
+"by_prov": {
+"66": 0.7
+},
+"lon": 100.28766,
+"lat": 15.90623,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9087,
+"area_km2": 0.7,
+"by_prov": {
+"66": 0.0,
+"67": 0.7
+},
+"lon": 100.74848,
+"lat": 15.92727,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9339,
+"area_km2": 0.7,
+"by_prov": {
+"67": 0.7
+},
+"lon": 100.80763,
+"lat": 15.73743,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3773,
+"area_km2": 0.6,
+"by_prov": {
+"66": 0.6
+},
+"lon": 100.09744,
+"lat": 16.09183,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4355,
+"area_km2": 0.6,
+"by_prov": {
+"66": 0.6
+},
+"lon": 100.17492,
+"lat": 15.95058,
+"amphoe": "เก้าเลี้ยว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9316,
+"area_km2": 0.6,
+"by_prov": {
+"67": 0.6
+},
+"lon": 100.78858,
+"lat": 15.54337,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9352,
+"area_km2": 0.6,
+"by_prov": {
+"67": 0.6
+},
+"lon": 100.80652,
+"lat": 15.6112,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9368,
+"area_km2": 0.6,
+"by_prov": {
+"67": 0.6
+},
+"lon": 100.82422,
+"lat": 15.64989,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1375,
+"area_km2": 0.5,
+"by_prov": {
+"62": 0.5
+},
+"lon": 99.76615,
+"lat": 15.91842,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1876,
+"area_km2": 0.5,
+"by_prov": {
+"62": 0.5
+},
+"lon": 99.87978,
+"lat": 16.05884,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1986,
+"area_km2": 0.5,
+"by_prov": {
+"62": 0.5
+},
+"lon": 99.89726,
+"lat": 16.07819,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3392,
+"area_km2": 0.5,
+"by_prov": {
+"66": 0.5
+},
+"lon": 100.05433,
+"lat": 16.16489,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6420,
+"area_km2": 0.5,
+"by_prov": {
+"66": 0.5
+},
+"lon": 100.41813,
+"lat": 15.91998,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9088,
+"area_km2": 0.5,
+"by_prov": {
+"67": 0.5
+},
+"lon": 100.7484,
+"lat": 15.91756,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9288,
+"area_km2": 0.5,
+"by_prov": {
+"67": 0.5
+},
+"lon": 100.7912,
+"lat": 15.84438,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9558,
+"area_km2": 0.5,
+"by_prov": {
+"62": 0.5
+},
+"lon": 99.2445,
+"lat": 15.91965,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1032,
+"area_km2": 0.4,
+"by_prov": {
+"62": 0.4
+},
+"lon": 99.60086,
+"lat": 15.88495,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1308,
+"area_km2": 0.4,
+"by_prov": {
+"62": 0.4
+},
+"lon": 99.73973,
+"lat": 15.82623,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1618,
+"area_km2": 0.4,
+"by_prov": {
+"62": 0.4
+},
+"lon": 99.82742,
+"lat": 16.02019,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2655,
+"area_km2": 0.4,
+"by_prov": {
+"62": 0.4
+},
+"lon": 99.97674,
+"lat": 16.31582,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3621,
+"area_km2": 0.4,
+"by_prov": {
+"66": 0.4
+},
+"lon": 100.08036,
+"lat": 16.15019,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3983,
+"area_km2": 0.4,
+"by_prov": {
+"66": 0.4
+},
+"lon": 100.12319,
+"lat": 16.02856,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5725,
+"area_km2": 0.4,
+"by_prov": {
+"66": 0.4
+},
+"lon": 100.34866,
+"lat": 15.93014,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9317,
+"area_km2": 0.4,
+"by_prov": {
+"67": 0.4
+},
+"lon": 100.79925,
+"lat": 15.77148,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9319,
+"area_km2": 0.4,
+"by_prov": {
+"67": 0.4
+},
+"lon": 100.79907,
+"lat": 15.75206,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9354,
+"area_km2": 0.4,
+"by_prov": {
+"67": 0.4
+},
+"lon": 100.8161,
+"lat": 15.71308,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9360,
+"area_km2": 0.4,
+"by_prov": {
+"67": 0.4
+},
+"lon": 100.81558,
+"lat": 15.65482,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9599,
+"area_km2": 0.4,
+"by_prov": {
+"62": 0.4
+},
+"lon": 99.26188,
+"lat": 15.90991,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 173,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.37491,
+"lat": 15.9146,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 659,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.50533,
+"lat": 15.91919,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1112,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.62684,
+"lat": 15.85087,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1154,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.64406,
+"lat": 15.80225,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1170,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.65271,
+"lat": 15.78766,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1324,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.74858,
+"lat": 15.86992,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1741,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.85358,
+"lat": 16.03466,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2393,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.95021,
+"lat": 16.23338,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3545,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.07168,
+"lat": 16.15509,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5106,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.27894,
+"lat": 15.90143,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6070,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.38343,
+"lat": 15.92992,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6157,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.39209,
+"lat": 15.92501,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7653,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.54862,
+"lat": 15.93365,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8704,
+"area_km2": 0.3,
+"by_prov": {
+"66": 0.3
+},
+"lon": 100.68768,
+"lat": 15.93261,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9129,
+"area_km2": 0.3,
+"by_prov": {
+"67": 0.3
+},
+"lon": 100.745,
+"lat": 15.51944,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9436,
+"area_km2": 0.3,
+"by_prov": {
+"62": 0.3
+},
+"lon": 99.18365,
+"lat": 15.92456,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 263,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.40098,
+"lat": 15.9097,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1276,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.72232,
+"lat": 15.81658,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1291,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.73102,
+"lat": 15.82141,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1467,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.7924,
+"lat": 15.96204,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1539,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.80995,
+"lat": 16.00083,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1987,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.89722,
+"lat": 16.06848,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2244,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.93261,
+"lat": 16.1946,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3079,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.01981,
+"lat": 16.22334,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4294,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.16625,
+"lat": 15.95549,
+"amphoe": "เก้าเลี้ยว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 5037,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.27028,
+"lat": 15.90633,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7202,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.4964,
+"lat": 15.92431,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7582,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.53989,
+"lat": 15.92886,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7863,
+"area_km2": 0.2,
+"by_prov": {
+"66": 0.2
+},
+"lon": 100.57473,
+"lat": 15.93832,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9174,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.76552,
+"lat": 15.88829,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9249,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.78281,
+"lat": 15.87844,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9353,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.80643,
+"lat": 15.60149,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9365,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.82465,
+"lat": 15.69844,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9367,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.82447,
+"lat": 15.67902,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9374,
+"area_km2": 0.2,
+"by_prov": {
+"67": 0.2
+},
+"lon": 100.83268,
+"lat": 15.62555,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9390,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.15755,
+"lat": 15.91001,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9451,
+"area_km2": 0.2,
+"by_prov": {
+"62": 0.2
+},
+"lon": 99.19235,
+"lat": 15.92941,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 48,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.33143,
+"lat": 15.90982,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1004,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.59219,
+"lat": 15.88983,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1087,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.61819,
+"lat": 15.86547,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1326,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.74851,
+"lat": 15.85049,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1540,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.80991,
+"lat": 15.99112,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1784,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.8623,
+"lat": 16.03948,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1983,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.8974,
+"lat": 16.10733,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2108,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.91502,
+"lat": 16.15582,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2176,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.92379,
+"lat": 16.17036,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2395,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.95011,
+"lat": 16.21395,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2910,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.00294,
+"lat": 16.33026,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3009,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.01158,
+"lat": 16.31565,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3078,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.01986,
+"lat": 16.23305,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3128,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.02016,
+"lat": 16.29133,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3164,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.02839,
+"lat": 16.19902,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3468,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.063,
+"lat": 16.15999,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3699,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.08893,
+"lat": 16.12587,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3701,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.08882,
+"lat": 16.10644,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3913,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.11474,
+"lat": 16.07231,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4476,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.19225,
+"lat": 15.94077,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6597,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.43552,
+"lat": 15.91987,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7125,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.48767,
+"lat": 15.91951,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 7725,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.55735,
+"lat": 15.93845,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8135,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.60958,
+"lat": 15.94777,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8874,
+"area_km2": 0.1,
+"by_prov": {
+"66": 0.1
+},
+"lon": 100.71372,
+"lat": 15.92755,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9289,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.79112,
+"lat": 15.83467,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9315,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.78866,
+"lat": 15.55308,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9318,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.79916,
+"lat": 15.76177,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9337,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.79755,
+"lat": 15.57728,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9355,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.81601,
+"lat": 15.70337,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9359,
+"area_km2": 0.1,
+"by_prov": {
+"67": 0.1
+},
+"lon": 100.81567,
+"lat": 15.66453,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9503,
+"area_km2": 0.1,
+"by_prov": {
+"62": 0.1
+},
+"lon": 99.21844,
+"lat": 15.93425,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 913,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.56615,
+"lat": 15.90447,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 945,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.57483,
+"lat": 15.89959,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 975,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.58351,
+"lat": 15.89471,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1059,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.60954,
+"lat": 15.88007,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1086,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.61822,
+"lat": 15.87518,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1113,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.62681,
+"lat": 15.84116,
+"amphoe": "แม่วงก์",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1262,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.71361,
+"lat": 15.81175,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1434,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.78365,
+"lat": 15.9475,
+"amphoe": "ลาดยาว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 1503,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.80115,
+"lat": 15.97658,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2044,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.90621,
+"lat": 16.13158,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2245,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.93257,
+"lat": 16.18489,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2390,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.94162,
+"lat": 16.2577,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2740,
+"area_km2": 0.0,
+"by_prov": {
+"62": 0.0
+},
+"lon": 99.98547,
+"lat": 16.32063,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 2998,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.01163,
+"lat": 16.32537,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3106,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.02026,
+"lat": 16.31076,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3139,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.02011,
+"lat": 16.28162,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3229,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.02875,
+"lat": 16.26701,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3240,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.02869,
+"lat": 16.25729,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3698,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.08898,
+"lat": 16.13558,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 3914,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.11468,
+"lat": 16.0626,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4046,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.13186,
+"lat": 16.02366,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4171,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.14903,
+"lat": 15.98472,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4232,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.1577,
+"lat": 15.97981,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4234,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.15759,
+"lat": 15.96039,
+"amphoe": "บรรพตพิสัย",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4724,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.22691,
+"lat": 15.92115,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 4910,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.25295,
+"lat": 15.91615,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6332,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.40941,
+"lat": 15.91518,
+"amphoe": "ชุมแสง",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 6784,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.4529,
+"lat": 15.91975,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8328,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.63561,
+"lat": 15.94272,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8818,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.70507,
+"lat": 15.93247,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 8982,
+"area_km2": 0.0,
+"by_prov": {
+"66": 0.0
+},
+"lon": 100.7311,
+"lat": 15.92741,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9077,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.73629,
+"lat": 15.51465,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9211,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.76243,
+"lat": 15.52901,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9254,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.78239,
+"lat": 15.82989,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9256,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.78222,
+"lat": 15.81047,
+"amphoe": "หนองบัว",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9364,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.81524,
+"lat": 15.61598,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9366,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.82456,
+"lat": 15.68873,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+},
+{
+"hex": 9371,
+"area_km2": 0.0,
+"by_prov": {
+"67": 0.0
+},
+"lon": 100.82396,
+"lat": 15.62076,
+"amphoe": "ไพศาลี",
+"major": false,
+"river": "",
+"gauge": ""
+}
+],
+"province_area_km2": {
+"62": 8411.0,
+"65": 10668.0,
+"66": 4248.0,
+"67": 12450.0
+},
+"province_names": {
+"60": "นครสวรรค์",
+"62": "กำแพงเพชร",
+"65": "พิษณุโลก",
+"66": "พิจิตร",
+"67": "เพชรบูรณ์"
+},
+"contrib_km2": {
+"62": 7184.0,
+"65": 9722.0,
+"66": 4246.0,
+"67": 2921.0
+}
+}

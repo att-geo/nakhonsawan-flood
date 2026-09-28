@@ -76,6 +76,7 @@ def _gj_filter(in_json, out_json, pred):
 def build(project_dir, repo_dir, hex_km2=1.0, stream_km2=5.0, major_km2=1000.0, log=None):
     arcpy.CheckOutExtension("Spatial")
     arcpy.env.overwriteOutput = True
+    arcpy.env.pyramid = "NONE"
     src = download_sources(os.path.join(project_dir, "source"), log)
     gdb = os.path.join(project_dir, "flood_static.gdb")
     if not arcpy.Exists(gdb):
