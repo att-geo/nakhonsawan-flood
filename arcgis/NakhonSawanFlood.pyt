@@ -3,6 +3,10 @@
 
 1) Build Static Layers   : DEM/HAND/Sink/CN -> hex grid + ไฟล์ static ของเว็บ
 1b) Build Upstream Basins: ลุ่มน้ำ 4 จังหวัดต้นน้ำที่ไหลเข้า นว. + จุดน้ำเข้า + เวลาเดินทาง + HAND แม่น้ำสายหลัก
+1c) Build Network & Drainage: เครือข่ายการไหลหลายทิศ, จุดล้น, hypsometry, คลอง/สถานีสูบ/ประตูน้ำ/คันกั้นน้ำ
+1d) Build 2D Hotspots: โดเมนแบบจำลอง 2 มิติ + export ข้อมูล HEC-RAS
+0)  Build All: FABDEM + burn OSM -> 1 -> 1b -> 1c -> 1d
+2b) Run 2D Hotspots, 2c) Calibrate
 2) Run Update (local)    : รัน pipeline near-realtime บนเครื่อง แล้วโหลดผลเป็น feature class ลงแผนที่
 3) Publish to GitHub     : git add/commit/push โฟลเดอร์เว็บ (ต้องมี git + สิทธิ์ push)
 """
@@ -29,7 +33,7 @@ class Toolbox:
     def __init__(self):
         self.label = "Nakhon Sawan Flood Watch"
         self.alias = "nsflood"
-        self.tools = [BuildStatic, BuildUpstream, RunUpdate, PublishGitHub]
+        self.tools = [BuildAll, BuildStatic, BuildUpstream, BuildNetwork, BuildHotspots, RunUpdate, RunHotspots, Calibrate, PublishGitHub]
 
 
 class BuildStatic:
@@ -77,6 +81,93 @@ class BuildUpstream:
         import build_upstream; importlib.reload(build_upstream)
         v = [p.valueAsText for p in params]
         build_upstream.build_upstream(v[0], v[1], float(v[2]), float(v[3]), major_km2=float(v[4]), log=arcpy.AddMessage)
+
+
+def _proj_param():
+    try:
+        proj = os.path.dirname(arcpy.mp.ArcGISProject("CURRENT").filePath)
+    except Exception:  # noqa
+        proj = None
+    return [_p("project_dir", "Project folder", "DEFolder", value=proj),
+            _p("repo_dir", "Web app folder (repo)", "DEFolder", value=REPO_DEFAULT)]
+
+
+class BuildAll:
+    def __init__(self):
+        self.label = "0) Build All (FABDEM + OSM → static → upstream → network → 2D hotspots)"
+        self.description = "ทำทุกขั้นของชั้นข้อมูลคงที่ใหม่ทั้งหมด (30–60 นาที)"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        return _proj_param()
+
+    def execute(self, params, messages):
+        import build_network, build_hotspots; importlib.reload(build_network); importlib.reload(build_hotspots)
+        v = [p.valueAsText for p in params]
+        build_network.build_all(v[0], v[1], log=arcpy.AddMessage)
+        build_hotspots.build_hotspots(v[0], v[1], log=arcpy.AddMessage)
+        build_hotspots.export_hecras(v[0], v[1], log=arcpy.AddMessage)
+
+
+class BuildNetwork:
+    def __init__(self):
+        self.label = "1c) Build Network & Drainage Assets"
+        self.description = ("เครือข่าย hex: สัดส่วนการไหลหลายทิศ, ระดับจุดล้น, hypsometry; โครงสร้างระบายน้ำจาก OSM + "
+                            "data/static/drainage_assets_user.csv (รันใหม่หลังแก้ไฟล์ CSV)")
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        return _proj_param()
+
+    def execute(self, params, messages):
+        import build_network; importlib.reload(build_network)
+        v = [p.valueAsText for p in params]
+        build_network.build_network(v[0], v[1], log=arcpy.AddMessage)
+
+
+class BuildHotspots:
+    def __init__(self):
+        self.label = "1d) Build 2D Hotspots + HEC-RAS export"
+        self.description = "โดเมนแบบจำลอง 2D (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) และชุดข้อมูลสำหรับ HEC-RAS 2D"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        return _proj_param() + [_p("cell", "ขนาด cell บนพื้นดิน (ม.)", "GPDouble", value=120.0)]
+
+    def execute(self, params, messages):
+        import build_hotspots; importlib.reload(build_hotspots)
+        v = [p.valueAsText for p in params]
+        build_hotspots.build_hotspots(v[0], v[1], float(v[2]), log=arcpy.AddMessage)
+        build_hotspots.export_hecras(v[0], v[1], log=arcpy.AddMessage)
+
+
+class RunHotspots:
+    def __init__(self):
+        self.label = "2b) Run 2D Hotspots"
+        self.description = "รันแบบจำลอง 2D rain-on-grid (ต้องรัน tool 2 ก่อน) + เขียน rain.csv/stage_*.csv สำหรับ HEC-RAS"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        return [_p("repo_dir", "Web app folder (repo)", "DEFolder", value=REPO_DEFAULT)]
+
+    def execute(self, params, messages):
+        import run_hotspots; importlib.reload(run_hotspots)
+        run_hotspots.main(params[0].valueAsText, hecras=True)
+
+
+class Calibrate:
+    def __init__(self):
+        self.label = "2c) Calibrate hex model against 2D"
+        self.description = "grid search t_mult / weir_c / dcap_mult ให้พื้นที่ท่วมของโมเดล hex ใกล้ผล 2D (ต้องรัน tool 2 และ 2b ก่อน)"
+        self.canRunInBackground = False
+
+    def getParameterInfo(self):
+        return [_p("repo_dir", "Web app folder (repo)", "DEFolder", value=REPO_DEFAULT)]
+
+    def execute(self, params, messages):
+        import calibrate; importlib.reload(calibrate)
+        out = calibrate.main(params[0].valueAsText)
+        arcpy.AddMessage(json.dumps({k: out[k] for k in ("t_mult", "weir_c", "dcap_mult", "score", "baseline_score")}))
 
 
 class RunUpdate:

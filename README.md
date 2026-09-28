@@ -50,6 +50,7 @@ flowchart LR
 - โหมดแผนที่: ท่วมขังตอนนี้ · สูงสุดใน 72 ชม. · ระยะเวลาท่วม · ฝน 24 ชม./7 วัน · ฝนพยากรณ์ 72 ชม.
 - คลิก hex: ความลึก, สาเหตุ (ฝน/ล้นตลิ่ง), **ท่วมมาแล้วกี่ชั่วโมง, คาดว่าจะลดลงเมื่อไร**, ฝนสะสม, ค่า HAND/CN จาก ArcGIS Pro
 - **แท็บต้นน้ำ**: น้ำจากกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ — ปริมาตรที่จะไหลเข้า นว. ใน 72 ชม. รายจังหวัด, hydrograph + พยากรณ์ของปิง/น่าน-ยม/แม่วงก์/เจ้าพระยา เทียบความจุลำน้ำ, พื้นที่ที่ราบลุ่มน้ำล้นตลิ่ง, แผนที่ลุ่มน้ำและจุดน้ำเข้า
+- **แท็บ 2D จุดวิกฤต**: แผนที่ความลึกความละเอียด 120 ม. (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) ตอนนี้/+24/+48/+72 ชม./สูงสุด, ชั้นคลอง คันกั้นน้ำ สถานีสูบ ประตูระบายน้ำ และผลการสอบเทียบ
 - สรุปรายอำเภอ, สถานีระดับน้ำ (สถานการณ์ตามตลิ่ง), สถานีวัดฝน, กราฟฝนรายชั่วโมง, แท็บ Windy (ฝน/ฝนสะสม/เรดาร์/เมฆ)
 - ชั้นพื้นที่ลุ่มต่ำ (HAND) จาก ArcGIS Pro, ชั้นน้ำท่วมจากดาวเทียม GISTDA (ถ้าเปิดใช้)
 - รีเฟรชข้อมูลเองทุก 5 นาที · ใช้บนมือถือได้
@@ -73,14 +74,25 @@ flowchart LR
 
 ## การใช้งานใน ArcGIS Pro
 
-1. Catalog → Toolboxes → Add Toolbox → `arcgis/NakhonSawanFlood.pyt`
-2. **1) Build Static Layers** — ดาวน์โหลด DEM/WorldCover/ขอบเขต, วิเคราะห์, export ลง `data/static/` (ประมาณ 10–20 นาที)
-   ต้องการความละเอียดขึ้น: เปลี่ยน DEM เป็น DEM 5 ม. ของ พด./LiDAR หรือ FABDEM ใน `build_static.py` ขั้นที่ 2
-3. **1b) Build Upstream Basins** — DEM ภูมิภาค 5 จังหวัด หาพื้นที่ใน 4 จังหวัดต้นน้ำที่ไหลเข้า นว., จุดน้ำเข้า, เวลาเดินทาง และคำนวณ HAND แม่น้ำสายหลักใหม่ (ประมาณ 20–30 นาที)
-4. **2) Run Update (local)** — รันโมเดลบนเครื่อง ได้ feature class `hex_status` พร้อม symbology สำหรับทำแผนที่/รายงาน
-5. **3) Publish to GitHub** — push ชั้นข้อมูลใหม่ขึ้น repo (Actions จะ deploy ให้)
+Catalog → Toolboxes → Add Toolbox → `arcgis/NakhonSawanFlood.pyt`
 
-รันโมเดลจาก command line: `python pipeline/run_update.py --site .` แล้วเปิดเว็บทดสอบด้วย `python -m http.server 8000`
+| Tool | ทำอะไร |
+|---|---|
+| **0) Build All** | FABDEM + burn ลำน้ำ/คันกั้นน้ำ OSM → 1 → 1b → 1c → 1d (ชั้นข้อมูลคงที่ใหม่ทั้งหมด, 30–60 นาที) |
+| 1) Build Static Layers | Fill/FlowDir/FlowAcc/HAND/แอ่ง/CN → hex 1 กม² |
+| 1b) Build Upstream Basins | ลุ่มน้ำกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ ที่ไหลเข้า นว., จุดน้ำเข้า, เวลาเดินทาง, HAND แม่น้ำสายหลัก |
+| 1c) Build Network & Drainage | การไหลหลายทิศ, จุดล้นระหว่าง hex, hypsometry, คลอง/สถานีสูบ/ประตูน้ำ (รันใหม่หลังแก้ `drainage_assets_user.csv`) |
+| 1d) Build 2D Hotspots | โดเมนแบบจำลอง 2D + ชุดข้อมูล HEC-RAS (`hecras/`) |
+| 2) Run Update (local) | รันโมเดลบนเครื่อง → feature class `hex_status` |
+| 2b) Run 2D Hotspots | แบบจำลอง 2D + rain.csv / stage_*.csv สำหรับ HEC-RAS |
+| 2c) Calibrate | สอบเทียบโมเดล hex กับผล 2D → `calibration.json` |
+| 3) Publish to GitHub | commit + push |
+
+Command line: `python pipeline/run_update.py --site .` → `python pipeline/run_hotspots.py --site .` → `python pipeline/calibrate.py --site .`
+ทดสอบเว็บ: `python -m http.server 8000`
+
+**เพิ่มข้อมูลโครงสร้างระบายน้ำจริง** (ความจุสถานีสูบ, ประตูระบายน้ำที่ OSM ไม่มี): แก้ `data/static/drainage_assets_user.csv`
+(`type,name,lon,lat,capacity_m3s,note` — type = pump หรือ gate) แล้วรัน tool 1c
 
 ## โครงสร้างโฟลเดอร์
 
@@ -91,18 +103,21 @@ data/static/   hex.geojson, params.json, districts.geojson, province.geojson,
                upstream_zones.json, upstream_entries.json, upstream_basins.geojson   ← จาก ArcGIS Pro
 data/live/     meta, status, frames, stations, districts, series, upstream,
                gauges_hist, rain_cache (.json)                             ← จาก pipeline ทุกชั่วโมง
-pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดลน้ำท่วมขัง), upstream.py (น้ำหลากจากต้นน้ำ)
-arcgis/        build_static.py, build_upstream.py, NakhonSawanFlood.pyt
+pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดล hex v3), upstream.py (น้ำหลากจากต้นน้ำ),
+               model2d.py + run_hotspots.py (แบบจำลอง 2D), calibrate.py (สอบเทียบ)
+arcgis/        build_static.py, build_upstream.py, build_network.py, build_hotspots.py, NakhonSawanFlood.pyt
+hecras/        ชุดข้อมูลสำหรับ HEC-RAS 2D ของแต่ละจุดวิกฤต
 docs/          ARCHITECTURE.md
 ```
 
 ## ข้อจำกัด
 
-แบบจำลองนี้เป็น **screening model** สำหรับเตือนภัยล่วงหน้าและจัดลำดับพื้นที่เฝ้าระวัง ไม่ใช่แบบจำลองชลศาสตร์ 2 มิติ
+โมเดล hex เป็น **screening model** ความละเอียด 1 กม² (มีแบบจำลอง 2D 120 ม. เฉพาะจุดวิกฤต) สำหรับเตือนภัยล่วงหน้าและจัดลำดับพื้นที่เฝ้าระวัง ไม่ใช่แบบจำลองชลศาสตร์ 2 มิติ
 ความลึกเป็นค่าประมาณ ควรสอบเทียบกับพื้นที่น้ำท่วมจริงจาก GISTDA/รายงานภาคสนามก่อนใช้ประกอบการตัดสินใจ
 
 ## แหล่งข้อมูลและสัญญาอนุญาต
 
 Open-Meteo (CC BY 4.0, non-commercial ฟรี) · ThaiWater / สถาบันสารสนเทศทรัพยากรน้ำ (สสน.) · GISTDA · Windy.com (embed) ·
+FABDEM V1-2 (Hawker et al. 2022, **CC BY-NC-SA 4.0 — ใช้เชิงพาณิชย์ไม่ได้**; ถ้าจะใช้เชิงพาณิชย์ให้กลับไปใช้ Copernicus DEM) · OpenStreetMap (ODbL) ·
 Copernicus DEM GLO-30 © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA ·
 ESA WorldCover 2021 (CC BY 4.0) · geoBoundaries (CC BY 4.0) · แผนที่ฐาน © OpenStreetMap, CARTO, Esri

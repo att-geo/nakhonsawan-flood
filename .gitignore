@@ -4,3 +4,7 @@ __pycache__/
 *.part
 *.pyt.xml
 data/live/rain_cache.json
+hecras/*/terrain.*
+hecras/*/landcover.*
+hecras/*/*.xml
+hecras/*/*.ovr

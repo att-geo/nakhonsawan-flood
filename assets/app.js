@@ -76,8 +76,8 @@
     const [status, frames, stations, districts, series] = await Promise.all([
       j("data/live/status.json", v), j("data/live/frames.json", v), jOpt("data/live/stations.json", v),
       jOpt("data/live/districts.json", v), jOpt("data/live/series.json", v)]);
-    const upstream = await jOpt("data/live/upstream.json", v);
-    Object.assign(S, { meta, status, frames, stations, districts, series, upstream });
+    const [upstream, hot] = await Promise.all([jOpt("data/live/upstream.json", v), jOpt("data/live/hotspots_live.json", v)]);
+    Object.assign(S, { meta, status, frames, stations, districts, series, upstream, hot });
     const nowIdx = frames.t.indexOf(frames.now);
     const sl = $("#slider"); sl.max = frames.t.length - 1;
     if (S.frame === 0 || force || !S.userMoved) S.frame = nowIdx;
@@ -105,14 +105,15 @@
   // ---------------------------------------------------------------- render
   function renderAll() {
     setLiveDot(S.meta); renderKpis(); styleHex(); renderLegend(); renderTimelineLabel();
-    renderDistricts(); renderStations(); renderRain(); renderUpstream(); renderAbout();
+    renderDistricts(); renderStations(); renderRain(); renderUpstream(); renderHot(); renderAbout();
   }
 
   function hexStyleFn() {
     const st = S.status, m = S.mode;
     const frameCls = S.frames.c[S.frame];
     const isNow = S.frames.t[S.frame] === S.frames.now;
-    if (m === "class") return i => { const c = +frameCls[i]; return { fillColor: CLS_COL[c], fillOpacity: c ? .78 : 0 }; };
+    const fo = i => st.f && isNow ? .35 + .5 * Math.min(st.f[i], 100) / 100 : .78;     // โปร่งตามสัดส่วนพื้นที่ท่วมใน hex
+    if (m === "class") return i => { const c = +frameCls[i]; return { fillColor: CLS_COL[c], fillOpacity: c ? fo(i) : 0 }; };
     if (m === "m72") return i => { const c = st.m72[i]; return { fillColor: CLS_COL[c], fillOpacity: c ? .78 : 0 }; };
     if (m === "u72") return i => { const d = (st.u72 || [])[i] || 0; const c = d >= 100 ? 4 : d >= 50 ? 3 : d >= 25 ? 2 : d >= 10 ? 1 : 0; return { fillColor: CLS_COL[c], fillOpacity: c ? .8 : 0 }; };
     if (m === "dur") return i => { const h = st.c[i] ? Math.max(st.h[i], 0) + Math.max(st.r[i] >= 999 ? 336 : st.r[i], 0) : 0; const col = binCol(h, DUR_BR, DUR_COL); return { fillColor: col, fillOpacity: h ? .8 : 0 }; };
@@ -208,7 +209,9 @@
     const html = `<div class="pp"><h4>อ.${a} · hex #${i}</h4>
       <div class="grid">
         <span>สถานะตอนนี้</span><span><span class="sw" style="background:${CLS_COL[c] === CLS_COL[0] ? "#fff" : CLS_COL[c]}"></span><b>${CLS_SHORT[c]}</b></span>
-        <span>ความลึกประมาณ</span><span>${nf(st.d[i])} ซม.</span>
+        <span>ความลึกเฉลี่ย (ส่วนที่ท่วม)</span><span>${nf(st.d[i])} ซม.</span>
+        ${st.f ? `<span>พื้นที่ท่วมใน hex</span><span>${nf(st.f[i])}%</span>` : ""}
+        ${st.wse ? `<span>ระดับผิวน้ำ</span><span>${nf(st.wse[i], 2)} ม.</span>` : ""}
         <span>สาเหตุ</span><span>${SRC_LBL[st.s[i]]}</span>
         <span>ท่วมมาแล้ว</span><span>${hrsTxt}</span>
         <span>คาดว่าจะลดลงใน</span><span>${durTxt(st.r[i])}</span>
@@ -292,7 +295,7 @@
       const fp = r.floodplain || {};
       return `<div class="rv"><div class="t"><span>${r.name}</span><span style="color:${col}">${pct == null ? "–" : nf(pct) + "% ความจุ"}</span></div>
         <div class="bar"><i style="width:${Math.min(pct || 0, 100)}%;background:${col}"></i></div>
-        <div class="m">สถานี ${r.gauge} ${r.gauge_name} · ตอนนี้ <b>${nf(r.q_obs)}</b> / ${nf(r.qmax)} ลบ.ม./วิ · ${r.diff > 0 ? `<b style="color:var(--bad)">ล้นตลิ่ง ${nf(r.diff, 2)} ม.</b>` : `ต่ำกว่าตลิ่ง ${nf(-(r.diff ?? NaN), 2)} ม.`}<br>
+        <div class="m">สถานี ${r.gauge} ${r.gauge_name} · ตอนนี้ <b>${nf(r.q_obs)}</b>${r.q_is_est ? "*" : ""} / ${nf(r.qmax)} ลบ.ม./วิ${r.q_is_est ? " (*ประมาณจากระดับน้ำ)" : ""} · ${r.diff > 0 ? `<b style="color:var(--bad)">ล้นตลิ่ง ${nf(r.diff, 2)} ม.</b>` : `ต่ำกว่าตลิ่ง ${nf(-(r.diff ?? NaN), 2)} ม.`}<br>
         คาดสูงสุด 72 ชม. <b>${nf(r.peak_q)}</b> ลบ.ม./วิ (${r.peak_t ? fmtT(r.peak_t) : "–"})${fp.area_max ? ` · น้ำล้นตลิ่งที่ราบลุ่ม ${nf(fp.area_now)} → สูงสุด ${nf(fp.area_max)} กม² (${nf(fp.vol_max, 1)} ล้าน ลบ.ม.)` : ""}</div>
         ${hydroSvg(r)}</div>`;
     }).join("") + `<div class="note"><span class="sw" style="background:#0f172a"></span>ค่าตรวจวัด (สะสมทุกชั่วโมง) <span class="sw" style="background:#94a3b8;margin-left:8px"></span>ย้อนหลังโดยประมาณ <span class="sw" style="background:#7c3aed;margin-left:8px"></span>พยากรณ์ = ค่าตรวจวัดตอนนี้ + น้ำท่าจากฝนใน 4 จังหวัดที่กำลังเดินทางมา</div>`;
@@ -321,6 +324,59 @@
     const cg = u.calib?.group || {};
     $("#upNote").textContent = (Object.keys(cg).length ? `ปรับขนาดน้ำท่าแบบจำลองด้วยปริมาณน้ำจริง: ${Object.entries(cg).map(([k2, v2]) => `${k2 === "ping" ? "กลุ่มปิง (กำแพงเพชร)" : "กลุ่มน่าน-ยม (พิษณุโลก พิจิตร เพชรบูรณ์)"} ×${nf(v2, 2)}`).join(", ")} · ` : "") + "พื้นที่ลุ่มน้ำและเวลาเดินทางของน้ำวิเคราะห์ด้วย ArcGIS Pro (Copernicus DEM 90 ม.) · น้ำท่าคำนวณด้วย SCS-CN จากฝน Open-Meteo ที่ปรับแก้ด้วยสถานี · ความจุลำน้ำ/ปริมาณน้ำจริงจากกรมชลประทานผ่าน ThaiWater";
   }
+
+
+  // ---------------------------------------------------------------- 2D hotspots + drainage assets
+  S.hotSnap = "now"; S.hotLayers = {};
+  async function loadDrainage() {
+    if (S.drainLoaded) return; S.drainLoaded = true;
+    const [lines, assets] = await Promise.all([jOpt("data/static/drainage.geojson", "s3"), jOpt("data/static/drainage_assets.json", "s3")]);
+    S.drainAssets = assets;
+    if (lines) {
+      S.drainLines = L.geoJSON(lines, { renderer, interactive: false, style: f => f.properties.k === "dyke" ? { color: "#92400e", weight: 2.2, opacity: .9 } : { color: "#0891b2", weight: f.properties.k === "canal" ? 1.6 : 1, opacity: .7 } });
+      layerCtl.addOverlay(S.drainLines, "คลอง/คูระบาย/คันกั้นน้ำ (OSM)");
+    }
+    if (assets) {
+      const pm = assets.pumps.map(x => L.circleMarker([x.lat, x.lon], { renderer, radius: 5, color: "#fff", weight: 1.5, fillColor: "#0e7490", fillOpacity: 1 })
+        .bindPopup(`<b>${x.name}</b><br>สถานีสูบน้ำ · ${nf(x.cap_m3s, 1)} ลบ.ม./วิ${x.cap_default ? " (ค่าตั้งต้น — แก้ได้ใน drainage_assets_user.csv)" : ""}<br><span class="note">${x.src}</span>`));
+      const gt = assets.gates.map(x => L.marker([x.lat, x.lon], { icon: L.divIcon({ className: "", html: `<div style="width:10px;height:10px;background:#92400e;border:2px solid #fff;transform:rotate(45deg)"></div>`, iconSize: [10, 10] }) })
+        .bindPopup(`<b>${x.name}</b><br>${{ sluice_gate: "ประตูระบายน้ำ", lock_gate: "ประตูเรือสัญจร", weir: "ฝาย", dam: "เขื่อน/ฝาย" }[x.kind] || x.kind}<br><span class="note">${x.src}</span>`));
+      S.assetLayer = L.layerGroup([...pm, ...gt]);
+      layerCtl.addOverlay(S.assetLayer, "สถานีสูบน้ำ / ประตูระบายน้ำ");
+    }
+    renderHot();
+  }
+  function showHotMap() {
+    loadDrainage().then(() => { [S.drainLines, S.assetLayer].forEach(l => l && !map.hasLayer(l) && l.addTo(map)); });
+    Object.values(S.hotLayers).forEach(l => !map.hasLayer(l) && l.addTo(map));
+  }
+  function renderHot() {
+    const h = S.hot || {}, ids = Object.keys(h).filter(k => !k.startsWith("_"));
+    Object.values(S.hotLayers).forEach(l => { map.removeLayer(l); layerCtl.removeLayer(l); }); S.hotLayers = {};
+    ids.forEach(k => { const x = h[k], fn = x.png[S.hotSnap] || x.png.now;
+      S.hotLayers[k] = L.imageOverlay(`data/live/hotspots/${fn}?v=${encodeURIComponent(h._generated || "")}`, x.bounds, { opacity: .85, interactive: false });
+      layerCtl.addOverlay(S.hotLayers[k], `2D: ${x.name}`); });
+    if ($('.tabs button[data-tab="hot"]').classList.contains("active")) showHotMap();
+    $("#hotList").innerHTML = ids.length ? ids.map(k => { const x = h[k];
+      const s = x.series || [], mx = Math.max(1, ...s.map(r => r[1])), W = 340, H = 60, t0 = s.length ? s[0][0] : 0, t1 = s.length ? s[s.length - 1][0] : 1;
+      const path = s.map((r, i) => `${i ? "L" : "M"}${((r[0] - t0) / (t1 - t0 || 1) * W).toFixed(1)},${(H - 4 - r[1] / mx * (H - 10)).toFixed(1)}`).join("");
+      const xn = (x.now - t0) / (t1 - t0 || 1) * W;
+      return `<div class="rv" data-k="${k}" style="cursor:pointer"><div class="t"><span>${x.name}</span><span>${nf(x.area_now_km2, 1)} → ${nf(x.area_max72_km2, 1)} กม²</span></div>
+        <div class="m">พื้นที่ท่วม ≥10 ซม. ตอนนี้ → สูงสุด 72 ชม. · สถานีขอบเขต ${x.stations.join(", ")} · ${nf(x.runtime_s)} วินาที</div>
+        <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="height:60px"><path d="${path}" fill="none" stroke="#2563eb" stroke-width="2"/>
+        <line x1="${xn}" x2="${xn}" y1="0" y2="${H}" stroke="#dc2626" stroke-dasharray="3 2"/><text x="2" y="10" font-size="9" fill="currentColor" opacity=".6">${nf(mx, 1)} กม²</text></svg></div>`; }).join("")
+      : `<p class="note">ยังไม่มีผล 2D — รัน <code>python pipeline/run_hotspots.py --site .</code> หรือรอรอบถัดไปของ GitHub Actions (ทุก 6 ชม.)</p>`;
+    $$("#hotList .rv").forEach(el => el.onclick = () => { const x = h[el.dataset.k]; showHotMap(); map.fitBounds(x.bounds); });
+    const a = S.drainAssets, sm = S.meta?.summary || {};
+    $("#drainInfo").innerHTML = a ? `สถานีสูบน้ำ ${a.pumps.length} แห่ง (ความจุรวม ${nf(a.pumps.reduce((q, x) => q + x.cap_m3s, 0))} ลบ.ม./วิ) · ประตูระบายน้ำ/ฝาย ${a.gates.length} แห่ง ·
+      คลอง/คูระบาย ${nf((S.params.canal_km || []).reduce((q, x) => q + x, 0))} กม. ${sm.pumped_72h_mcm != null ? `· คาดสูบออก 72 ชม. ${nf(sm.pumped_72h_mcm, 2)} ล้าน ลบ.ม.` : ""}<br>
+      ข้อมูลจาก OpenStreetMap — ความจุสถานีสูบที่ไม่ทราบใช้ค่าตั้งต้น 3 ลบ.ม./วิ แก้/เพิ่มได้ในไฟล์ <code>data/static/drainage_assets_user.csv</code>` : "เปิดแท็บนี้เพื่อโหลดข้อมูล";
+    const c = S.meta?.calibration;
+    $("#calibInfo").innerHTML = c ? `เวลาระบาย ×${nf(c.t_mult, 2)} · การล้นข้ามจุดล้น ×${nf(c.weir_c, 2)} · ความจุแอ่ง ×${nf(c.dcap_mult, 2)} ·
+      คะแนน ${nf(c.score, 3)} (ค่าเริ่มต้น ${nf(c.baseline_score, 3)}) · สอบเทียบกับแบบจำลอง 2D ${c.hotspots?.length || 0} จุด เมื่อ ${c.calibrated_at ? new Date(c.calibrated_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }) : "–"}`
+      : "ยังไม่ได้สอบเทียบ — ใช้ค่าเริ่มต้นตามหลักอุทกวิทยา";
+  }
+  $$("#hotSeg button").forEach(b => b.onclick = () => { S.hotSnap = b.dataset.snap; $$("#hotSeg button").forEach(x => x.classList.toggle("active", x === b)); renderHot(); });
 
   // ---------------------------------------------------------------- rain chart (SVG)
   function renderRain() {
@@ -357,18 +413,19 @@
         <li>${ok("gistda")} GISTDA น้ำท่วมจากดาวเทียม ${src.gistda?.ok ? src.gistda.features + " แปลง" : "(" + (src.gistda?.error || "ปิด") + ")"}</li></ul>
       <p class="note">โมเดล: ${m.model} · ใช้เวลา ${m.runtime_s} วินาที</p>
       <h4>ขั้นตอนวิเคราะห์</h4>
-      <p><b>ชั้นข้อมูลคงที่ (ArcGIS Pro)</b> — Copernicus DEM 30 ม. → Fill, Flow Direction (D8), Flow Accumulation, HAND (Flow Distance แนวดิ่งถึงลำน้ำ), ความจุแอ่ง (Fill − DEM), ความลาดชัน; ESA WorldCover → Curve Number (HSG C/D) และสัดส่วนนา/เมือง; สรุปลง hex 1 กม² พร้อม hex ท้ายน้ำสำหรับ routing</p>
-      <p><b>ทุก 1 ชั่วโมง (GitHub Actions)</b> — ฝนรายชั่วโมงย้อนหลัง 30 วัน + พยากรณ์ 72 ชม. จาก Open-Meteo ปรับแก้ 24 ชม. ล่าสุดด้วยสถานีวัดฝน ThaiWater → SCS-CN (AMC จากฝน 5 วัน) → กักเก็บในแอ่ง/คันนา → ระบายแบบ linear reservoir ตามความลาดชันไปยัง hex ท้ายน้ำ → ความลึกน้ำขัง; น้ำล้นตลิ่งคำนวณจากระดับน้ำสถานีเทียบ HAND ของแม่น้ำสายหลัก และลดอัตราระบายเมื่อระดับน้ำใกล้ตลิ่ง</p>
-      <p><b>น้ำจาก 4 จังหวัดต้นน้ำ</b> — ArcGIS Pro วิเคราะห์ DEM ภูมิภาค 90 ม. หาทุกพื้นที่ในกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ ที่ไหลเข้านครสวรรค์ จุดที่น้ำเข้า และเวลาเดินทาง (0.7 ม./วิ) → ทุกชั่วโมงคำนวณน้ำท่าจากฝน (SCS-CN) หน่วงเวลาและชะลอ (linear reservoir) เป็น hydrograph ที่จุดเข้า; แม่น้ำสายหลัก (ปิง P.17, น่าน-ยม N.67, แม่วงก์ Ct.5A, เจ้าพระยา C.2) ยึดปริมาณน้ำจริงจากกรมชลประทานแล้วบวกส่วนเปลี่ยนแปลงจากฝนต้นน้ำ; ส่วนที่เกินความจุลำน้ำสะสมเป็นปริมาตรแล้วเติมลงที่ราบลุ่มตาม HAND (level-pool) ส่วนลำน้ำสาขาไหลเข้าแบบจำลองน้ำท่วมขังราย hex</p>
-      <p><b>ระยะเวลาท่วม</b> — จำนวนชั่วโมงที่ความลึก ≥ 10 ซม. ต่อเนื่องถึงปัจจุบัน และเวลาที่คาดว่าจะลดต่ำกว่า 10 ซม. จากการจำลองต่อด้วยฝนพยากรณ์ (เกิน 72 ชม. ใช้อัตราการลดช่วงท้าย / น้ำล้นตลิ่งใช้แนวโน้มระดับน้ำ)</p>
+      <p><b>ภูมิประเทศ (ArcGIS Pro)</b> — FABDEM 30 ม. (Copernicus DEM ที่ตัดอาคาร/ต้นไม้ออก) + burn ลำน้ำ/คลองจาก OpenStreetMap + ยกคันกั้นน้ำ → Fill, Flow Direction, Flow Accumulation, HAND, ความลาดชัน; ESA WorldCover → Curve Number; สรุปลง hex 1 กม² พร้อม<b>เครือข่ายการไหล</b>: สัดส่วนการไหลไปยัง hex ข้างเคียงหลายทิศ (จากเส้นทางน้ำ D8 ทุก cell ที่ข้ามขอบ hex), <b>ระดับจุดล้น</b>ระหว่าง hex (P5 ของความสูงตามแนวขอบ) และ<b>ความสัมพันธ์ระดับ-ปริมาตร</b>ของแต่ละ hex (ความสูง P0–P100)</p>
+      <p><b>ทุก 1 ชั่วโมง</b> — ฝนรายชั่วโมง 30 วัน + พยากรณ์ 72 ชม. (Open-Meteo ปรับแก้ด้วยสถานี ThaiWater) → SCS-CN → น้ำเก็บในคันนา/แอ่ง → <b>ระบายตามทิศการไหลหลายทิศ</b> (linear reservoir, เร็วขึ้นตามความยาวคลองใน hex) + ท่อระบายน้ำในเขตเมือง + <b>สถานีสูบน้ำ</b>ส่งลงแม่น้ำ; <b>ประตูระบายน้ำปิด</b>และการระบายช้าลงเมื่อระดับน้ำในแม่น้ำใกล้ตลิ่ง → ทุก 15 นาที <b>น้ำไหลข้าม hex ตามระดับผิวน้ำเหนือจุดล้น</b> (fill-spill แบบ weir — น้ำแผ่ด้านข้างและไหลย้อนได้, คันกั้นน้ำ/ถนนเป็นจุดล้นที่สูง) → ความลึกเฉลี่ยและสัดส่วนพื้นที่ท่วมใน hex</p>
+      <p><b>น้ำจาก 4 จังหวัดต้นน้ำ</b> — DEM ภูมิภาคหาพื้นที่ที่ไหลเข้า นว. จุดน้ำเข้า และเวลาเดินทาง → hydrograph จากฝน (SCS-CN + lag + linear reservoir) ปรับขนาดด้วยปริมาณน้ำจริงของกรมชลประทาน; แม่น้ำสายหลักพยากรณ์ Q = ค่าตรวจวัด + การเปลี่ยนแปลงจากฝนต้นน้ำ ส่วนที่เกินความจุลำน้ำ<b>ฉีดเข้า hex ลำน้ำหลัก</b>แล้วให้ fill-spill กระจายตามระดับผิวน้ำและคันกั้นน้ำ; ลำน้ำสาขาไหลเข้าเครือข่าย hex ตรงจุดน้ำเข้า</p>
+      <p><b>แบบจำลอง 2 มิติจุดวิกฤต</b> — local inertial rain-on-grid 120 ม. (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) ทุก 6 ชม.; ใช้สภาพน้ำจากโมเดล hex เป็นเงื่อนไขเริ่มต้นและระดับน้ำสถานีเป็นขอบเขตแม่น้ำ; ผลใช้แสดงรายละเอียดและ<b>สอบเทียบ</b>พารามิเตอร์ของโมเดล hex (pipeline/calibrate.py); มีชุดข้อมูลสำหรับ HEC-RAS 2D ในโฟลเดอร์ hecras/</p>
+      <p><b>ระยะเวลาท่วม</b> — ชั่วโมงที่ความลึก ≥ 10 ซม. ต่อเนื่องถึงปัจจุบัน และเวลาที่คาดว่าจะลดต่ำกว่า 10 ซม. จากการจำลองต่อ (เกิน 72 ชม. ใช้อัตราการลดช่วงท้าย)</p>
       <h4>ข้อจำกัด</h4><ul>
-        <li>เป็นแบบจำลองเชิงคัดกรอง (screening) ไม่ใช่แบบจำลองชลศาสตร์ 2 มิติ ความลึกเป็นค่าประมาณเฉลี่ยในส่วนที่ลุ่มของ hex</li>
-        <li>DEM เป็น DSM (รวมอาคาร/ต้นไม้) ไม่รวมคันกั้นน้ำ ประตูระบายน้ำ และระบบสูบน้ำในเขตเมือง</li>
-        <li>น้ำจากต้นน้ำเหนือ 4 จังหวัด (เขื่อนภูมิพล/สิริกิติ์, สุโขทัย, อุตรดิตถ์) รวมอยู่ในค่าตรวจวัดของสถานี แต่ไม่ได้พยากรณ์การระบายเขื่อน; ที่ราบลุ่มคำนวณตาม HAND ไม่รวมคันกั้นน้ำ</li>
-        <li>ฝนย้อนหลังเป็นค่าจากแบบจำลองอากาศ ปรับแก้เฉพาะ 24 ชม. ล่าสุด ควรสอบเทียบกับพื้นที่ท่วมจริง (GISTDA) ก่อนใช้ตัดสินใจ</li></ul>
+        <li>โมเดล hex เป็นแบบจำลองเชิงคัดกรองความละเอียด 1 กม² — ใช้ผล 2D ในจุดวิกฤตประกอบ และควรสอบเทียบกับพื้นที่ท่วมจริง (GISTDA) ก่อนใช้ตัดสินใจ</li>
+        <li>ข้อมูลโครงสร้างระบายน้ำมาจาก OpenStreetMap ซึ่งอาจไม่ครบ/ไม่มีความจุจริง — เพิ่มข้อมูลจากกรมชลประทาน/เทศบาลได้ใน drainage_assets_user.csv</li>
+        <li>ไม่ได้พยากรณ์การระบายเขื่อนภูมิพล/สิริกิติ์ (อยู่ในค่าตรวจวัดปัจจุบันของสถานี)</li>
+        <li>ฝนย้อนหลังเป็นค่าจากแบบจำลองอากาศ ปรับแก้เฉพาะ 24 ชม. ล่าสุด</li></ul>
       <h4>แหล่งข้อมูล</h4><ul>
         <li>Open-Meteo (CC BY 4.0) · ThaiWater / สสน. · GISTDA · Windy.com</li>
-        <li>Copernicus DEM GLO-30 (© DLR/Airbus, ESA) · ESA WorldCover 2021 (CC BY 4.0) · geoBoundaries</li></ul>`;
+        <li>FABDEM V1-2 (Hawker et al. 2022, CC BY-NC-SA 4.0) · Copernicus DEM GLO-30 (© DLR/Airbus, ESA) · ESA WorldCover 2021 (CC BY 4.0) · OpenStreetMap (ODbL) · geoBoundaries</li></ul>`;
   }
 
   // ---------------------------------------------------------------- UI wiring
@@ -385,6 +442,7 @@
     $$(".pane").forEach(p => p.classList.toggle("active", p.dataset.pane === b.dataset.tab));
     if (b.dataset.tab === "windy") setWindy(S.windyOv || "rain");
     if (b.dataset.tab === "upstream") showUpstreamMap();
+    if (b.dataset.tab === "hot") showHotMap();
   });
   function setWindy(ov) {
     S.windyOv = ov;

@@ -3,7 +3,16 @@ name: update-flood-data
 on:
   schedule:
     - cron: "7 * * * *"        # ทุกชั่วโมง นาทีที่ 7 (UTC) — GitHub อาจดีเลย์ 5–20 นาที
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      hotspots:
+        description: "รันแบบจำลอง 2D จุดวิกฤตรอบนี้"
+        type: boolean
+        default: true
+      calibrate:
+        description: "สอบเทียบโมเดล hex กับผล 2D แล้ว commit calibration.json"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -19,7 +28,7 @@ concurrency:
 jobs:
   update-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 45
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -47,6 +56,20 @@ jobs:
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
           curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true
+          for f in hex_state hotspots_live; do
+            curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
+          done
+          mkdir -p data/live/hotspots
+          python - "$base" <<'PY' || true
+          import json, sys, urllib.request, os
+          base = sys.argv[1]; p = "data/live/hotspots_live.json"
+          if os.path.exists(p):
+              for k, v in json.load(open(p, encoding="utf8")).items():
+                  if k.startswith("_"): continue
+                  for fn in v.get("png", {}).values():
+                      try: urllib.request.urlretrieve(f"{base}/data/live/hotspots/{fn}", f"data/live/hotspots/{fn}")
+                      except Exception as e: print("skip", fn, e)
+          PY
 
       - name: Run near-realtime model
         id: model
@@ -54,6 +77,30 @@ jobs:
         env:
           GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
         run: python pipeline/run_update.py --site .
+
+      - name: 2D hotspot model (ทุก 6 ชม. หรือสั่งเอง)
+        if: steps.model.outcome == 'success'
+        continue-on-error: true
+        run: |
+          H=$(date -u +%H)
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.hotspots }}" = "true" ]; } || \
+             { [ "${{ github.event_name }}" = "schedule" ] && [ $((10#$H % 6)) -eq 0 ]; }; then
+            python pipeline/run_hotspots.py --site .
+          else
+            echo "skip 2D this hour (ใช้ผลรอบก่อนที่กู้คืนมา)"
+          fi
+
+      - name: Calibrate hex model against 2D (สัปดาห์ละครั้ง หรือสั่งเอง)
+        if: steps.model.outcome == 'success'
+        continue-on-error: true
+        run: |
+          H=$(date -u +%H); D=$(date -u +%u)
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.calibrate }}" = "true" ]; } || \
+             { [ "${{ github.event_name }}" = "schedule" ] && [ "$D" = "7" ] && [ "$H" = "00" ]; }; then
+            python pipeline/calibrate.py --site . && python pipeline/run_update.py --site .
+            git config user.name "flood-bot"; git config user.email "flood-bot@users.noreply.github.com"
+            git add data/static/calibration.json && git commit -m "chore: recalibrate hex model [skip ci]" && git push || true
+          fi
 
       - name: Keep schedule alive (GitHub ปิด cron ถ้า repo ไม่มี commit 60 วัน)
         if: github.event_name == 'schedule'

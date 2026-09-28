@@ -22,6 +22,7 @@ import upstream as upm  # noqa: E402
 TZ = timezone(timedelta(hours=7))
 UA = {"User-Agent": "NakhonSawanFloodWatch/1.1 (+github pages)"}
 PAST_DAYS, FC_HOURS, FRAME_STEP, FRAME_PAST_H = 30, 72, 3, 168
+HOT_PAST_H = 48                                               # 2D hotspot เริ่มจำลองย้อนหลัง 48 ชม. (ใช้สภาพน้ำจากโมเดล hex)
 TW = "https://api-v3.thaiwater.net/api/v1/thaiwater30/public/"
 G_LON0, G_LAT0, G_STEP, G_COLS = 99.0, 15.0, 0.2, 16          # ต้องตรงกับ arcgis/build_upstream.py
 REGION = (98.9, 14.9, 101.9, 18.0)                            # ขอบเขตดึงสถานี (5 จังหวัด)
@@ -155,6 +156,10 @@ def fetch_tw_level(bbox, zref):
                     "river": (d.get("river_name") or ""), "agency": (d.get("agency") or {}).get("agency_shortname", {}).get("th", ""),
                     "province": geo.get("province_name", {}).get("th", ""), "pcode": geo.get("province_code", ""),
                     "z_ref": (zref.get(code) or {}).get("z_ref")})
+        o = out[-1]
+        if o["q"] is None and o["qmax"] and o["storage_pct"]:
+            # ไม่มีค่า Q รอบนี้: ประมาณจากความจุลำน้ำ Q ≈ qmax·(ระดับน้ำ/ความลึกตลิ่ง)^(5/3) (Manning)
+            o["q_est"] = round(o["qmax"] * (max(o["storage_pct"], 0) / 100.0) ** (5 / 3), 1)
     return out
 
 
@@ -254,6 +259,9 @@ def main(site):
 
     # 4) upstream inflow (4 provinces)
     ext = None; R = np.zeros((T, prm.n), np.float32); up_out = None
+    inj = np.zeros((T, prm.n)); reach_hex = {}
+    netj = J("network.json")
+    use_v3 = bool(netj) and all(f"z_p{q}" in p for q in model.ZQ)
     if zones and entries:
         up = upm.Upstream(zones, entries, p)
         Qz, genz = up.run(Pz)
@@ -268,13 +276,13 @@ def main(site):
         for key, (name, gcode, _, _) in upm.REACHES.items():
             g = by_code.get(gcode, {})
             qm = Qe[:, reach_of == key].sum(1) if key != "cpy" else np.zeros(T)
-            qobs = g.get("q")
+            qobs = g.get("q") if g.get("q") is not None else g.get("q_est")
             qfc[key] = (qm, qobs, g)
         # C.2 = obs + Δping + Δnan (lag 12 h)
         dP = qfc["ping"][0] - qfc["ping"][0][i_now]; dN = qfc["nan"][0] - qfc["nan"][0][i_now]
         sh = lambda a, k: np.concatenate([np.full(k, a[0]), a[:-k]])
         qfc["cpy"] = (sh(dP, 12) + sh(dN, 12), qfc["cpy"][1], qfc["cpy"][2])
-        reach_hex = upm.assign_reaches(p, by_code)
+        reach_hex.update(upm.assign_reaches(p, by_code))
         for key, (name, gcode, _, _) in upm.REACHES.items():
             qm, qobs, g = qfc[key]
             base = qobs if qobs is not None else None
@@ -298,7 +306,15 @@ def main(site):
                 bank_hand = float(np.clip(bh_g if bh_g and bh_g > 0 else (np.median(bh) if bh else 2.0), 0.5, 10))
                 S0 = upm.level_volume(p, hexes, h0) if h0 > 0 else 0.0
                 dep, Fh, S, hlev = upm.floodplain(p, hexes, Qf[i_now:], qbf, S0, bank_hand)
-                R[i_now:, hexes] = np.maximum(R[i_now:, hexes], dep)
+                if use_v3:
+                    # น้ำส่วนเกินความจุลำน้ำ -> ฉีดเข้า hex ลำน้ำหลักของช่วงนั้น แล้วให้โมเดล fill-spill กระจายตามระดับผิวน้ำ/คันกั้นน้ำ
+                    fac = np.asarray(p["facc_km2"])[hexes]
+                    ch = hexes[fac >= 1000] if (fac >= 1000).any() else hexes[np.argsort(np.asarray(p["handM_p10"])[hexes])[:5]]
+                    wts = np.asarray(p["f_low"])[ch] + 0.1; wts = wts / wts.sum()
+                    vol = np.zeros(T); vol[i_now:] = np.maximum(Qf[i_now:] - qbf, 0) * 3600.0; vol[i_now] += S0
+                    inj[:, ch] += vol[:, None] * wts[None] / (1000.0 * hk)
+                else:
+                    R[i_now:, hexes] = np.maximum(R[i_now:, hexes], dep)
                 fp = {"area_now": round(float((Fh[0] * (dep[0] >= model.FLOOD_CM)).sum() * hk), 1),
                       "area_max": round(float(((Fh * (dep >= model.FLOOD_CM)).sum(1)).max() * hk), 1),
                       "vol_max": round(float(S.max()) / 1e6, 2), "level_now": round(float(hlev[0]), 2),
@@ -307,7 +323,7 @@ def main(site):
             t_idx = slice(max(i_now - 72, 0), i_end + 1)
             pk = int(np.nanargmax(Qf[i_now:])) if base is not None else 0
             rivers.append({"key": key, "name": name, "gauge": gcode, "gauge_name": g.get("name", ""),
-                           "qmax": qbf, "q_obs": qobs, "wl": g.get("wl"), "bank": g.get("bank"), "diff": g.get("diff"),
+                           "qmax": qbf, "q_obs": qobs, "q_is_est": g.get("q") is None and qobs is not None, "wl": g.get("wl"), "bank": g.get("bank"), "diff": g.get("diff"),
                            "storage_pct": g.get("storage_pct"), "time": g.get("time"),
                            "t": times[t_idx].tolist(), "q_model": np.round(qm[t_idx], 1).tolist(),
                            "q_fc": [None if np.isnan(v) else round(float(v), 1) for v in Qf[t_idx]],
@@ -351,21 +367,61 @@ def main(site):
                              for s in wl_all if s["pcode"] in UP_PROV and s["code"] in upm.UP_GAUGES]}
         src["upstream"] = {"ok": True, "zones": int(zones["n"]), "entries": int(len(uent))}
 
-    # 5) NS ponding simulation (+ minor upstream inflow) and riverine floodplain
-    depth_rain = model.simulate(P, prm, backwater, ext)
-    R[i_now] = np.maximum(R[i_now], rdep)
-    depth = np.maximum(depth_rain, R)
-    cls = model.depth_class(depth)
-    hrs, _ = model.durations(depth_rain, i_now)
-    _, rem = model.durations(depth, i_now)
-    river_now = R[i_now] >= model.FLOOD_CM
-    hrs = np.where(river_now & (depth_rain[i_now] < model.FLOOD_CM), -1, hrs)
-    for k, s in enumerate(wl_st):                              # stage-only reaches: use trend
-        sel = (nearest == k) & (rdep >= model.FLOOD_CM) & (rem < 0)
-        if sel.any():
-            tr = s.get("trend") or 0
-            rem = np.where(sel, 999 if tr >= 0 else min(int(s["diff"] / -tr) + 1, 999), rem)
+    # 5) NS simulation
+    pumped72 = None; wse_now = None; frac = None
+    if use_v3:
+        nw = model.Network(netj, p, J("drainage_assets.json"), J("calibration.json"))
+        t2d = max(i_now - HOT_PAST_H, 0)
+        sim = lambda a, b, stt, jj: model.simulate_v3(P, prm, nw, backwater, ext, jj, t_start=a, t_end=b, state=stt)
+        dA, fA, sA = sim(0, t2d, None, None)
+        json.dump({"t0": int(times[t2d]), "wse": np.round(sA["wse"], 3).tolist(),
+                   "free": np.round(np.maximum(sA["W"] - prm.normal, 0), 1).tolist()},
+                  open(os.path.join(lv, "hex_state.json"), "w"), separators=(",", ":"))
+        dB, fB, sB = sim(t2d, i_now, sA, None)
+        try:                                                        # อินพุตสำหรับ pipeline/calibrate.py (ไม่ deploy)
+            import tempfile
+            np.savez_compressed(os.path.join(tempfile.gettempdir(), "nsflood_sim_inputs.npz"), P=P.astype(np.float32),
+                                ext=(ext if ext is not None else np.zeros_like(P)).astype(np.float32),
+                                inj=inj.astype(np.float32), bw=backwater, i_now=i_now, times=times)
+        except Exception:  # noqa
+            pass
+        dW0, fW0, sW0 = sim(i_now, i_now + 1, sB, inj); dW1, fW1, sW1 = sim(i_now + 1, T, sW0, inj)
+        dN0, fN0, sN0 = sim(i_now, i_now + 1, sB, None); dN1, fN1, _ = sim(i_now + 1, T, sN0, None)
+        depth = np.vstack([dA, dB, dW0, dW1]); frac = np.vstack([fA, fB, fW0, fW1])
+        depth_rain = np.vstack([dA, dB, dN0, dN1])
+        R = np.maximum(depth - depth_rain, 0)
+        wse_now = sW0["wse"]
+        pumped72 = float(np.concatenate([sW0["pumped"], sW1["pumped"]])[:73].sum()) * 1000 * hk / 1e6   # ล้าน ลบ.ม.
+        river_now = R[i_now] >= model.FLOOD_CM
+        cls = model.depth_class(depth)
+        hrs, _ = model.durations(depth_rain, i_now)
+        _, rem = model.durations(depth, i_now)
+        hrs = np.where(river_now & (depth_rain[i_now] < model.FLOOD_CM), -1, hrs)
+        # รายงานพื้นที่น้ำล้นตลิ่งราย reach จากโมเดลรวม
+        if up_out:
+            for r in up_out["rivers"]:
+                hx = reach_hex.get(r["key"], np.array([], int))
+                if hx.size:
+                    a_t = (frac[i_now:, hx] * (R[i_now:, hx] >= model.FLOOD_CM)).sum(1) * hk
+                    r["floodplain"].update({"area_now": round(float(a_t[0]), 1), "area_max": round(float(a_t.max()), 1)})
+    else:
+        depth_rain = model.simulate(P, prm, backwater, ext)
+        R[i_now] = np.maximum(R[i_now], rdep)
+        depth = np.maximum(depth_rain, R)
+        cls = model.depth_class(depth)
+        hrs, _ = model.durations(depth_rain, i_now)
+        _, rem = model.durations(depth, i_now)
+        river_now = R[i_now] >= model.FLOOD_CM
+        hrs = np.where(river_now & (depth_rain[i_now] < model.FLOOD_CM), -1, hrs)
+        for k, s in enumerate(wl_st):                              # stage-only reaches: use trend
+            sel = (nearest == k) & (rdep >= model.FLOOD_CM) & (rem < 0)
+            if sel.any():
+                tr = s.get("trend") or 0
+                rem = np.where(sel, 999 if tr >= 0 else min(int(s["diff"] / -tr) + 1, 999), rem)
+    if frac is None:
+        frac = (depth > 0).astype(np.float32)                      # v2: ทั้ง hex
     srcflag = (depth_rain[i_now] >= model.FLOOD_CM).astype(int) + 2 * river_now.astype(int)
+    area = lambda t_, m_: float((frac[t_] * m_).sum() * hk)       # พื้นที่ท่วมจริง (ถ่วงสัดส่วนพื้นที่ใน hex)
 
     fut = slice(i_now + 1, i_end + 1)
     def win(h): return slice(i_now + 1, min(i_now + 1 + h, i_end + 1))
@@ -380,7 +436,10 @@ def main(site):
         "dm72": np.round(depth[fut].max(0)).astype(int).tolist(),
         "u72": np.round(R[fut].max(0)).astype(int).tolist(),            # ความลึกจากน้ำล้นตลิ่ง/ต้นน้ำ สูงสุด 72 ชม.
         "ui": np.round(ext[i_now - 71:i_now + 1].sum(0) if ext is not None else np.zeros(prm.n)).astype(int).tolist(),
+        "f": np.round(frac[i_now] * 100).astype(int).tolist(),
     }
+    if wse_now is not None:
+        status["wse"] = np.round(wse_now, 2).tolist()
     fr_idx = list(range(max(i_now - FRAME_PAST_H, 0), i_end + 1, FRAME_STEP))
     if i_now not in fr_idx:
         fr_idx = sorted(set(fr_idx + [i_now]))
@@ -393,11 +452,12 @@ def main(site):
         sel = amph == a
         if not sel.any():
             continue
-        c_now = cls[i_now][sel]
+        c_now = cls[i_now][sel]; fs_ = frac[i_now][sel]
+        f72 = (frac[fut][:, sel] * (cls[fut][:, sel] >= 2)).sum(1).max() * hk if i_end > i_now else 0
         dist.append({"amphoe": nm, "hex": int(sel.sum()),
-                     "km2_now": round(float((c_now >= 2).sum() * hk), 1), "km2_watch": round(float((c_now >= 1).sum() * hk), 1),
-                     "km2_72h": round(float((m72[sel] >= 2).sum() * hk), 1),
-                     "km2_river72": round(float((R[fut][:, sel].max(0) >= model.FLOOD_CM).sum() * hk), 1),
+                     "km2_now": round(float((fs_ * (c_now >= 2)).sum() * hk), 1), "km2_watch": round(float((fs_ * (c_now >= 1)).sum() * hk), 1),
+                     "km2_72h": round(float(f72), 1),
+                     "km2_river72": round(float(((frac[fut][:, sel] * (R[fut][:, sel] >= model.FLOOD_CM)).sum(1).max() if i_end > i_now else 0) * hk), 1),
                      "max_cls_now": int(c_now.max()), "max_cls_72h": int(m72[sel].max()),
                      "rain24": round(float(P[i_now - 23:i_now + 1, sel].sum(0).mean()), 1),
                      "rain72": round(float(P[i_now - 71:i_now + 1, sel].sum(0).mean()), 1),
@@ -418,13 +478,16 @@ def main(site):
 
     gen_t = datetime.now(TZ)
     meta = {"generated": gen_t.isoformat(timespec="seconds"), "now": int(times[i_now]),
-            "model": "ponding-cascade v2 (SCS-CN + hex routing + upstream inflow + HAND floodplain)", "adjust": adj_note,
+            "model": ("hex-network v3 (SCS-CN + multi-direction drainage + fill-spill + drainage assets + upstream inflow)"
+                      if use_v3 else "ponding-cascade v2 (SCS-CN + hex routing + upstream inflow + HAND floodplain)"), "adjust": adj_note,
+            "calibration": J("calibration.json"),
             "sources": src, "runtime_s": round(time.time() - t0, 1),
             "classes": {"cm": list(model.CLASS_CM), "labels": ["ไม่ท่วม", "เฝ้าระวัง", "ท่วมขังเล็กน้อย", "ท่วมขังปานกลาง", "ท่วมสูง"]},
             "water_hex": int(prm.is_water.sum()),
-            "summary": {"km2_now": round(float((cls[i_now] >= 2).sum() * hk), 1),
-                        "km2_watch": round(float((cls[i_now] >= 1).sum() * hk), 1),
-                        "km2_72h": round(float((m72 >= 2).sum() * hk), 1),
+            "summary": {"km2_now": round(area(i_now, cls[i_now] >= 2), 1),
+                        "km2_watch": round(area(i_now, cls[i_now] >= 1), 1),
+                        "km2_72h": round(max(area(t_, cls[t_] >= 2) for t_ in range(i_now, i_end + 1)), 1),
+                        "pumped_72h_mcm": None if pumped72 is None else round(pumped72, 2),
                         "km2_river72": round(sum((r["floodplain"] or {}).get("area_max", 0) for r in (up_out or {}).get("rivers", [])), 1),
                         "rain24_max": int(max(status["p24"])), "fc72_max": int(max(status["f72"])),
                         "wl_over_bank": sum(1 for s in wl_st if s["diff"] > 0 and s.get("province") == "นครสวรรค์"),

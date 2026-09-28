@@ -111,7 +111,8 @@ class Upstream:
         scale = np.ones(len(pc)); k = {}
         for key, (codes, gcode) in CALIB_GROUPS.items():
             sel = np.isin(pc, codes)
-            qobs = (gauges.get(gcode) or {}).get("q")
+            gg = gauges.get(gcode) or {}
+            qobs = gg.get("q") if gg.get("q") is not None else gg.get("q_est")
             qm = float(Qz[i_now, sel].sum())
             if sel.any() and qobs and qm > 0:
                 k[key] = float(np.clip(beta * qobs / qm, kmin, 1.0))

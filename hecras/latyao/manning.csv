@@ -1,0 +1,12 @@
+worldcover_class,name,mannings_n
+10,Tree cover,0.1
+20,Shrubland,0.08
+30,Grassland,0.05
+40,Cropland (paddy),0.06
+50,Built-up,0.08
+60,Bare,0.035
+70,Snow,0.03
+80,Water,0.03
+90,Herbaceous wetland,0.07
+95,Mangroves,0.1
+100,Moss,0.05
