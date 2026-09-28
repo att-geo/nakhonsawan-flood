@@ -1,0 +1,74 @@
+name: update-flood-data
+
+on:
+  schedule:
+    - cron: "7 * * * *"        # ทุกชั่วโมง นาทีที่ 7 (UTC) — GitHub อาจดีเลย์ 5–20 นาที
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  update-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install
+        run: pip install numpy
+
+      - name: Configure Pages
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Restore last good live data (fallback if sources fail)
+        continue-on-error: true
+        run: |
+          base="${{ steps.pages.outputs.base_url }}"
+          for f in meta status frames stations districts series; do
+            curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
+          done
+          curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true
+
+      - name: Run near-realtime model
+        id: model
+        continue-on-error: true
+        env:
+          GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
+        run: python pipeline/run_update.py --site .
+
+      - name: Keep schedule alive (GitHub ปิด cron ถ้า repo ไม่มี commit 60 วัน)
+        if: github.event_name == 'schedule'
+        run: |
+          last=$(git log -1 --format=%ct)
+          if [ $(( $(date +%s) - last )) -gt $(( 50*24*3600 )) ]; then
+            git config user.name "flood-bot"; git config user.email "flood-bot@users.noreply.github.com"
+            date -u +%FT%TZ > .keepalive && git add .keepalive
+            git commit -m "chore: keepalive [skip ci]" && git push
+          fi
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deploy
+        uses: actions/deploy-pages@v4
