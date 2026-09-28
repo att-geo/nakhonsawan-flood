@@ -29,13 +29,16 @@
   // ---------------------------------------------------------------- map
   const map = L.map("map", { zoomControl: true, preferCanvas: true, minZoom: 7 }).setView([15.72, 100.0], 9);
   const base = {
-    "แผนที่ (CARTO)": L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-      { attribution: "© OpenStreetMap © CARTO", subdomains: "abcd", maxZoom: 19 }),
+    "แผนที่เทาอ่อน (Esri)": L.layerGroup([
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+        { attribution: "Esri, HERE, Garmin, © OpenStreetMap contributors", maxZoom: 19, maxNativeZoom: 16 }),
+      L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}",
+        { maxZoom: 19, maxNativeZoom: 16, pane: "shadowPane" })]),
     "OpenStreetMap": L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution: "© OpenStreetMap", maxZoom: 19 }),
     "ภาพถ่ายดาวเทียม (Esri)": L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
       { attribution: "Esri, Maxar, Earthstar Geographics", maxZoom: 19 }),
   };
-  base["แผนที่ (CARTO)"].addTo(map);
+  base["แผนที่เทาอ่อน (Esri)"].addTo(map);
   const renderer = L.canvas({ padding: 0.3 });
   const overlays = {};
   const layerCtl = L.control.layers(base, overlays, { collapsed: true, position: "topright" }).addTo(map);

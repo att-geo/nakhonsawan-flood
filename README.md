@@ -122,4 +122,4 @@ docs/          ARCHITECTURE.md
 Open-Meteo (CC BY 4.0, non-commercial ฟรี) · ThaiWater / สถาบันสารสนเทศทรัพยากรน้ำ (สสน.) · GISTDA · Windy.com (embed) ·
 FABDEM V1-2 (Hawker et al. 2022, **CC BY-NC-SA 4.0 — ใช้เชิงพาณิชย์ไม่ได้**; ถ้าจะใช้เชิงพาณิชย์ให้กลับไปใช้ Copernicus DEM) · OpenStreetMap (ODbL) ·
 Copernicus DEM GLO-30 © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA ·
-ESA WorldCover 2021 (CC BY 4.0) · geoBoundaries (CC BY 4.0) · แผนที่ฐาน © OpenStreetMap, CARTO, Esri
+ESA WorldCover 2021 (CC BY 4.0) · geoBoundaries (CC BY 4.0) · แผนที่ฐาน © Esri (World Light Gray Canvas, World Imagery), © OpenStreetMap contributors
