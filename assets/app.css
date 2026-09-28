@@ -54,6 +54,9 @@ html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
 .tbl th:first-child,.tbl td:first-child{text-align:left}
 .tbl td{padding:7px 4px;border-bottom:1px solid var(--line);text-align:right}
 .tbl tr{cursor:pointer}.tbl tbody tr:hover{background:var(--chip)}
+.dbar{display:flex;height:5px;border-radius:3px;overflow:hidden;margin-top:3px;background:var(--line)}.dbar i{display:block;height:100%}
+.tbl td.dur{white-space:nowrap;font-size:12px;min-width:92px}
+#durSum{margin:8px 0 2px}#durSum .dbar{height:8px;margin:4px 0}
 .sw{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px;border:1px solid rgba(0,0,0,.15)}
 .note{color:var(--muted);font-size:12px}
 .list .it{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-bottom:6px;cursor:pointer}

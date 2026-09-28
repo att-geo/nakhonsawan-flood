@@ -18,6 +18,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model  # noqa: E402
 import upstream as upm  # noqa: E402
+import gauges as gg  # noqa: E402
 
 TZ = timezone(timedelta(hours=7))
 UA = {"User-Agent": "NakhonSawanFloodWatch/1.1 (+github pages)"}
@@ -147,7 +148,7 @@ def fetch_tw_level(bbox, zref):
             continue
         prev = f(d.get("waterlevel_msl_previous")); code = st.get("tele_station_oldcode")
         geo = d.get("geocode") or {}
-        out.append({"code": code, "name": st.get("tele_station_name", {}).get("th", ""), "lat": la, "lon": lo,
+        out.append({"code": code, "sid": st.get("id"), "name": st.get("tele_station_name", {}).get("th", ""), "lat": la, "lon": lo,
                     "wl": wl, "bank": bank, "ground": f(st.get("ground_level")), "prev": prev,
                     "trend": None if prev is None else round(wl - prev, 2),
                     "diff": round(wl - bank, 2), "situation": d.get("situation_level"),
@@ -172,23 +173,25 @@ def fetch_gistda(key, out_path):
     return len(feats)
 
 
-def update_gauge_history(path, stations, keep_days=10):
-    hist = {}
-    if os.path.exists(path):
-        try:
-            hist = json.load(open(path, encoding="utf8"))
-        except Exception:  # noqa
-            hist = {}
-    cut = time.time() - keep_days * 86400
-    for s in stations:
-        if not s.get("time"):
-            continue
-        t = int(datetime.strptime(s["time"][:16], "%Y-%m-%d %H:%M").replace(tzinfo=TZ).timestamp())
-        h = [r for r in hist.get(s["code"], []) if r[0] >= cut and r[0] != t]
-        h.append([t, s.get("q"), s["wl"]]); h.sort()
-        hist[s["code"]] = h
-    json.dump(hist, open(path, "w", encoding="utf8"), separators=(",", ":"))
-    return hist
+def river_hours(hrs, reach_hex, up_out, t_now, lon, lat):
+    """hex ที่ท่วมจากน้ำล้นตลิ่งอย่างเดียว (hrs = −1): ระยะเวลาท่วม = ชม.นับจากระดับน้ำที่สถานีหลักของลำน้ำ
+    (ที่ใกล้ที่สุด) ขึ้นเหนือตลิ่ง จากประวัติระดับน้ำรายชั่วโมง 30 วัน — ถ้าไม่เคยล้นตลิ่งในช่วงนั้น คงเป็น −1"""
+    if not up_out:
+        return hrs
+    pts, hv = [], []
+    for r in up_out["rivers"]:
+        hx = reach_hex.get(r["key"], np.array([], int)); t0 = r.get("overbank_since")
+        if hx.size and t0:
+            pts.append(hx); hv.append(np.full(hx.size, max(int(round((t_now - t0) / 3600)), 0)))
+    miss = np.where(hrs < 0)[0]
+    if not pts or not miss.size:
+        return hrs
+    pts = np.concatenate(pts); hv = np.concatenate(hv)
+    lon = np.asarray(lon); lat = np.asarray(lat)
+    d = (lon[miss, None] - lon[None, pts]) ** 2 + (lat[miss, None] - lat[None, pts]) ** 2
+    j = d.argmin(1); near = d[np.arange(miss.size), j] < 0.1 ** 2        # ไม่เกิน ~10 กม. จากลำน้ำ
+    hrs = hrs.copy(); hrs[miss[near]] = hv[j[near]]
+    return hrs
 
 
 # ---------------------------------------------------------------- main
@@ -254,8 +257,13 @@ def main(site):
     wl_st = [s for s in wl_all if bb[0] <= s["lon"] <= bb[2] and bb[1] <= s["lat"] <= bb[3]]
     by_code = {s["code"]: s for s in wl_all}
     rdep, backwater, nearest = model.river_depth(prm, wl_st)
-    hist = update_gauge_history(os.path.join(lv, "gauges_hist.json"),
-                                [s for s in wl_all if s["code"] in set(upm.UP_GAUGES) | {r[1] for r in upm.REACHES.values()}])
+    hcodes = set(upm.UP_GAUGES) | {c for r in upm.REACHES.values() for c in [r[1]] + list(r[2])}
+    try:
+        hist, n_hf = gg.update(os.path.join(lv, "gauges_hist.json"), [s for s in wl_all if s["code"] in hcodes],
+                               get_json, TW, TZ, now_ts=float(times[i_now]) + 3600)
+        src["gauge_history"] = {"ok": True, "stations": len(hist), "fetched": n_hf}
+    except Exception as e:
+        hist = {}; src["gauge_history"] = {"ok": False, "error": str(e)[:200]}
 
     # 4) upstream inflow (4 provinces)
     ext = None; R = np.zeros((T, prm.n), np.float32); up_out = None
@@ -278,17 +286,47 @@ def main(site):
             qm = Qe[:, reach_of == key].sum(1) if key != "cpy" else np.zeros(T)
             qobs = g.get("q") if g.get("q") is not None else g.get("q_est")
             qfc[key] = (qm, qobs, g)
-        # C.2 = obs + Δping + Δnan (lag 12 h)
-        dP = qfc["ping"][0] - qfc["ping"][0][i_now]; dN = qfc["nan"][0] - qfc["nan"][0][i_now]
-        sh = lambda a, k: np.concatenate([np.full(k, a[0]), a[:-k]])
-        qfc["cpy"] = (sh(dP, 12) + sh(dN, 12), qfc["cpy"][1], qfc["cpy"][2])
+        # ปริมาณน้ำที่สถานีหลัก: ค่าตรวจวัดย้อนหลัง 30 วัน (เติมด้วย rating curve) + recession จากประวัติ
+        #   Qf(t) = [ขึ้นต่อแบบหน่วงถ้ายังขึ้น แล้วลดแบบ exponential ด้วย k จากประวัติ] + ส่วนเพิ่มจากฝนพยากรณ์ในแบบจำลอง
+        tg = times.astype(float); nf_ = T - i_now
+        gstat, Qall = {}, {}
+        for key, (name, gcode, _, _) in upm.REACHES.items():
+            g = by_code.get(gcode, {})
+            sr, rt, qsrc = gg.series(hist.get(gcode, []), g, tg)
+            qh = sr["q"] if sr else np.full(T, np.nan)
+            k, qb, nfall = gg.recession(qh[:i_now + 1], gg.K_DEFAULT.get(key, 96.0))
+            rate = gg.trend(qh[:i_now + 1])
+            ob_t, ob_now = gg.overbank_since(hist.get(gcode, []), g.get("bank"))
+            gstat[key] = {"k_h": round(k, 1), "k_from_hist": nfall >= 12, "q_base": None if qb is None else round(qb, 1),
+                          "trend_qph": round(rate, 2), "q_src": qsrc, "rating": rt, "fall_hours": nfall,
+                          "overbank_since": ob_t, "overbank_now": ob_now}
+            qfc[key] = qfc[key] + (qh, k, qb, rate)
+        # ประมาณ Q ของสถานีจาก rating curve เมื่อไม่มีค่าตรวจวัดรอบนี้ (แทน Manning ถ้ามี rating)
+        for key in qfc:
+            qm, qobs, g, qh, k, qb, rate = qfc[key]
+            if g.get("q") is None and gstat[key]["rating"] and g.get("wl") is not None:
+                qobs = float(gg.q_rating(gstat[key]["rating"], g["wl"])); g["q_est"] = round(qobs, 1)
+                qfc[key] = (qm, qobs, g, qh, k, qb, rate)
         reach_hex.update(upm.assign_reaches(p, by_code))
         for key, (name, gcode, _, _) in upm.REACHES.items():
-            qm, qobs, g = qfc[key]
+            qm, qobs, g, qh, k, qb, rate = qfc[key]
             base = qobs if qobs is not None else None
             Qf = np.full(T, np.nan)
-            if base is not None:
-                Qf[i_now:] = np.maximum(base + (qm[i_now:] - qm[i_now]) if key != "cpy" else base + qm[i_now:], 0.3 * base)
+            if base is not None and key != "cpy":
+                rec = gg.forecast(base, rate, k, qb, nf_)
+                Qf[i_now:] = rec + np.maximum(qm[i_now:] - qm[i_now], 0)            # ส่วนเพิ่มจากฝนใหม่/คลื่นน้ำจากต้นน้ำ
+            elif base is not None:
+                # C.2 ≈ ปิง(P.17) + น่าน(N.67) ล่าช้า 12 ชม.: ใช้ค่าตรวจวัดจริงย้อนหลังจนถึงตอนนี้ แล้วต่อด้วยค่าพยากรณ์
+                d = np.zeros(nf_)
+                for kk in ("ping", "nan"):
+                    qa = Qall.get(kk)
+                    if qa is None or np.isnan(qa[i_now - 12]):
+                        continue
+                    idx = np.arange(i_now, T) - 12
+                    d += np.nan_to_num(qa[idx] - qa[i_now - 12])
+                own = gg.forecast(base, 0.0, k, qb, nf_) - base if not any(k_ in Qall for k_ in ("ping", "nan")) else 0
+                Qf[i_now:] = np.maximum(base + d + own, qb if qb else 0.3 * base)
+            Qall[key] = np.where(np.arange(T) < i_now, qh, Qf)
             qbf = g.get("qmax")
             hexes = reach_hex.get(key, np.array([], int))
             fp = {"area_now": 0.0, "area_max": 0.0, "vol_max": 0.0}
@@ -327,7 +365,15 @@ def main(site):
                            "storage_pct": g.get("storage_pct"), "time": g.get("time"),
                            "t": times[t_idx].tolist(), "q_model": np.round(qm[t_idx], 1).tolist(),
                            "q_fc": [None if np.isnan(v) else round(float(v), 1) for v in Qf[t_idx]],
-                           "hist": [[r[0], r[1]] for r in hist.get(gcode, [])],
+                           "hist": [[int(times[i]), round(float(qh[i]), 1)] for i in range(max(i_now - 168, 0), i_now + 1)
+                                    if not np.isnan(qh[i])],
+                           "hist_src": gstat[key]["q_src"],
+                           "recession": {k_: gstat[key][k_] for k_ in ("k_h", "k_from_hist", "q_base", "trend_qph", "fall_hours")},
+                           "rating": None if not gstat[key]["rating"] else {k_: round(v_, 3) if isinstance(v_, float) else v_
+                                                                             for k_, v_ in gstat[key]["rating"].items()},
+                           "overbank_since": gstat[key]["overbank_since"], "overbank_now": gstat[key]["overbank_now"],
+                           "h_below_bank": (None if base is None or not qbf else
+                                            (0 if Qf[i_now] <= qbf else next((j for j in range(1, T - i_now) if Qf[i_now + j] <= qbf), 999))),
                            "peak_q": None if base is None else round(float(Qf[i_now + pk]), 1),
                            "peak_t": int(times[i_now + pk]), "floodplain": fp})
         # provinces summary
@@ -397,6 +443,7 @@ def main(site):
         hrs, _ = model.durations(depth_rain, i_now)
         _, rem = model.durations(depth, i_now)
         hrs = np.where(river_now & (depth_rain[i_now] < model.FLOOD_CM), -1, hrs)
+        hrs = river_hours(hrs, reach_hex, up_out, times[i_now], p["lon"], p["lat"])
         # รายงานพื้นที่น้ำล้นตลิ่งราย reach จากโมเดลรวม
         if up_out:
             for r in up_out["rivers"]:
@@ -413,6 +460,7 @@ def main(site):
         _, rem = model.durations(depth, i_now)
         river_now = R[i_now] >= model.FLOOD_CM
         hrs = np.where(river_now & (depth_rain[i_now] < model.FLOOD_CM), -1, hrs)
+        hrs = river_hours(hrs, reach_hex, up_out, times[i_now], p["lon"], p["lat"])
         for k, s in enumerate(wl_st):                              # stage-only reaches: use trend
             sel = (nearest == k) & (rdep >= model.FLOOD_CM) & (rem < 0)
             if sel.any():
@@ -447,6 +495,25 @@ def main(site):
               "c": ["".join(map(str, cls[i].tolist())) for i in fr_idx]}
 
     amph = np.asarray(p["amph"]); names = p["amphoe_list"]; dist = []
+    REM_BR = (24, 72, 168, 336)                                   # ชั้นระยะเวลาที่เหลือ: <1 วัน, 1–3, 3–7, 7–14, >14 วัน
+
+    def wmed(v, w):
+        if not v.size or w.sum() <= 0:
+            return None
+        o = np.argsort(v); c = np.cumsum(w[o])
+        return int(v[o][np.searchsorted(c, 0.5 * c[-1])])
+
+    def dur_stats(sel):
+        wet = sel & (depth[i_now] >= model.FLOOD_CM) & (frac[i_now] > 0)
+        w = frac[i_now][wet] * hk; hv = hrs[wet]; rv = rem[wet]
+        if not wet.any():
+            return {"dur_km2": 0.0, "h_med": None, "h_max": None, "r_med": None, "r_max": None, "r_km2": [0.0] * 5}
+        kk = np.digitize(np.where(rv < 0, 0, rv), REM_BR)
+        return {"dur_km2": round(float(w.sum()), 1),
+                "h_med": wmed(hv[hv >= 0], w[hv >= 0]), "h_max": int(hv.max()) if (hv >= 0).any() else None,
+                "h_unknown_km2": round(float(w[hv < 0].sum()), 1),
+                "r_med": wmed(np.maximum(rv, 0), w), "r_max": int(rv.max()),
+                "r_km2": [round(float(w[kk == i].sum()), 1) for i in range(5)]}
     m72 = np.asarray(status["m72"])
     for a, nm in enumerate(names):
         sel = amph == a
@@ -461,7 +528,7 @@ def main(site):
                      "max_cls_now": int(c_now.max()), "max_cls_72h": int(m72[sel].max()),
                      "rain24": round(float(P[i_now - 23:i_now + 1, sel].sum(0).mean()), 1),
                      "rain72": round(float(P[i_now - 71:i_now + 1, sel].sum(0).mean()), 1),
-                     "fc72": round(float(P[fut][:, sel].sum(0).mean()), 1)})
+                     "fc72": round(float(P[fut][:, sel].sum(0).mean()), 1), **dur_stats(sel)})
     dist.sort(key=lambda d: (-d["max_cls_now"], -d["km2_now"], -d["km2_72h"]))
     series = {"t": [int(x) for x in times[max(i_now - FRAME_PAST_H, 0):]],
               "mean": np.round(P[max(i_now - FRAME_PAST_H, 0):].mean(1), 2).tolist(),
@@ -491,7 +558,8 @@ def main(site):
                         "km2_river72": round(sum((r["floodplain"] or {}).get("area_max", 0) for r in (up_out or {}).get("rivers", [])), 1),
                         "rain24_max": int(max(status["p24"])), "fc72_max": int(max(status["f72"])),
                         "wl_over_bank": sum(1 for s in wl_st if s["diff"] > 0 and s.get("province") == "นครสวรรค์"),
-                        "up_vol72_mcm": (up_out or {}).get("total", {}).get("vol_in_72h_mcm")}}
+                        "up_vol72_mcm": (up_out or {}).get("total", {}).get("vol_in_72h_mcm"),
+                        "duration": {**dur_stats(np.ones(prm.n, bool)), "rem_breaks_h": list(REM_BR)}}}
     W = lambda n, o: json.dump(o, open(os.path.join(lv, n), "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
     W("status.json", status); W("frames.json", frames); W("districts.json", dist); W("series.json", series)
     W("stations.json", {"rain": [s for s in rain_st if s["pcode"] == "60"], "level": wl_st})

@@ -9,6 +9,7 @@
   const RAIN_COL = ["rgba(0,0,0,0)", "#d9f99d", "#4ade80", "#facc15", "#f97316", "#b91c1c"];
   const DUR_BR = [1, 12, 24, 72, 168];            // ชั่วโมง
   const DUR_COL = ["rgba(0,0,0,0)", "#fde68a", "#fbbf24", "#f97316", "#dc2626", "#7f1d1d"];
+  const REM_COL = ["#86efac", "#fde047", "#fb923c", "#dc2626", "#7f1d1d"], REM_LBL = ["< 1 วัน", "1–3 วัน", "3–7 วัน", "7–14 วัน", "> 14 วัน"];
   const WL_COL = { 1: "#b45309", 2: "#eab308", 3: "#16a34a", 4: "#2563eb", 5: "#dc2626" };
   const WL_LBL = { 1: "น้อยวิกฤต", 2: "น้อย", 3: "ปกติ", 4: "มาก", 5: "ล้นตลิ่ง" };
   const SRC_LBL = ["–", "น้ำฝนท่วมขัง", "น้ำล้นตลิ่ง/น้ำจากต้นน้ำ", "ฝน + ล้นตลิ่ง"];
@@ -20,7 +21,7 @@
     { timeZone: "Asia/Bangkok", ...(withDay ? { day: "numeric", month: "short" } : {}), hour: "2-digit", minute: "2-digit" });
   const nf = (v, d = 0) => (v == null || v < 0) ? "–" : Number(v).toLocaleString("th-TH", { maximumFractionDigits: d, minimumFractionDigits: d });
   const binCol = (v, br, cols) => { let i = 0; while (i < br.length && v >= br[i]) i++; return cols[i]; };
-  const durTxt = h => h < 0 ? "–" : h >= 999 ? "> 14 วัน" : h >= 48 ? `${Math.round(h / 24)} วัน` : `${h} ชม.`;
+  const durTxt = h => h == null || h < 0 ? "–" : h >= 999 ? "> 14 วัน" : h >= 48 ? `${Math.round(h / 24)} วัน` : `${h} ชม.`;
 
   const S = { params: null, status: null, frames: null, meta: null, stations: null, districts: null, series: null,
     hexLayer: null, frame: 0, mode: "class", playing: null, ver: null };
@@ -153,7 +154,12 @@
 
   function renderDistricts() {
     const tb = $("#distTable tbody"); if (!S.districts) { tb.innerHTML = ""; return; }
-    tb.innerHTML = S.districts.map(d => `<tr data-a="${d.amphoe}"><td><span class="sw" style="background:${CLS_COL[d.max_cls_now] === CLS_COL[0] ? "#fff" : CLS_COL[d.max_cls_now]}"></span>${d.amphoe}</td><td>${nf(d.km2_now)}</td><td>${nf(d.km2_72h)}</td><td>${nf(d.rain24, 1)}</td></tr>`).join("");
+    const bar = (a, tot) => tot > 0 && a ? `<div class="dbar">${a.map((v, k) => v > 0 ? `<i style="width:${v / tot * 100}%;background:${REM_COL[k]}" title="${REM_LBL[k]}: ${nf(v, 1)} กม²"></i>` : "").join("")}</div>` : "";
+    const durCell = d => d.dur_km2 > 0 ? `<td class="dur" title="ท่วมมาแล้ว มัธยฐาน ${durTxt(d.h_med)} · นานสุด ${durTxt(d.h_max)}\nคาดลดใน มัธยฐาน ${durTxt(d.r_med)} · นานสุด ${durTxt(d.r_max)}">${durTxt(d.h_med)} → ${durTxt(d.r_med)}${bar(d.r_km2, d.dur_km2)}</td>` : `<td class="dur">–</td>`;
+    tb.innerHTML = S.districts.map(d => `<tr data-a="${d.amphoe}"><td><span class="sw" style="background:${CLS_COL[d.max_cls_now] === CLS_COL[0] ? "#fff" : CLS_COL[d.max_cls_now]}"></span>${d.amphoe}</td><td>${nf(d.km2_now)}</td><td>${nf(d.km2_72h)}</td><td>${nf(d.rain24, 1)}</td>${durCell(d)}</tr>`).join("");
+    const du = S.meta?.summary?.duration;
+    $("#durSum").innerHTML = du && du.dur_km2 > 0 ? `ทั้งจังหวัด: ลึก ≥ 10 ซม. <b>${nf(du.dur_km2, 1)}</b> กม² · ท่วมมาแล้ว (มัธยฐาน) <b>${durTxt(du.h_med)}</b> · คาดลดใน (มัธยฐาน) <b>${durTxt(du.r_med)}</b>${bar(du.r_km2, du.dur_km2)}` +
+      REM_LBL.map((t, k) => `<span style="white-space:nowrap;margin-right:8px"><span class="sw" style="background:${REM_COL[k]}"></span>${t} ${nf(du.r_km2[k], 1)}</span>`).join("") : "";
     $$("#distTable tbody tr").forEach(tr => tr.onclick = () => zoomAmphoe(tr.dataset.a));
   }
   function zoomAmphoe(name) {
@@ -204,7 +210,7 @@
   function hexPopup(i, latlng) {
     const st = S.status, p = S.params;
     const c = st.c[i], a = p.amphoe_list[p.amph[i]];
-    const hrsTxt = st.h[i] < 0 ? "ตามระดับน้ำในลำน้ำ" : st.h[i] > 0 ? durTxt(st.h[i]) : "–";
+    const hrsTxt = st.h[i] < 0 ? "ไม่ทราบ (ไม่มีประวัติสถานี)" : st.h[i] > 0 && (st.s[i] & 2) && !(st.s[i] & 1) ? durTxt(st.h[i]) + " (นับจากสถานีล้นตลิ่ง)" : st.h[i] > 0 ? durTxt(st.h[i]) : "–";
     const fr = +S.frames.c[S.frame][i];
     const html = `<div class="pp"><h4>อ.${a} · hex #${i}</h4>
       <div class="grid">
@@ -269,7 +275,7 @@
     const fc = r.t.map((t, k) => [t, r.q_fc[k]]).filter(x => x[1] != null);
     const now = S.upstream.series.now, iN = r.t.indexOf(now);
     // ย้อนหลังโดยประมาณ = ค่าตรวจวัดตอนนี้ + การเปลี่ยนแปลงของน้ำท่าจากแบบจำลอง
-    const est = r.q_obs != null && iN > 0 ? r.t.slice(0, iN + 1).map((t, k) => [t, Math.max(r.q_obs + (r.q_model[k] - r.q_model[iN]), 0)]) : [];
+    const est = r.q_obs != null && iN > 0 && hist.length < 6 ? r.t.slice(0, iN + 1).map((t, k) => [t, Math.max(r.q_obs + (r.q_model[k] - r.q_model[iN]), 0)]) : [];
     vals.push(...est.map(x => x[1]));
     return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="color:var(--ink)">
       ${r.qmax ? `<line x1="0" x2="${W}" y1="${Y(r.qmax)}" y2="${Y(r.qmax)}" stroke="#dc2626" stroke-dasharray="4 3" opacity=".8"/><text x="${W - 2}" y="${Y(r.qmax) - 3}" font-size="9" text-anchor="end" fill="#dc2626">ความจุ ${nf(r.qmax)}</text>` : ""}
@@ -280,6 +286,13 @@
       ${r.q_obs != null ? `<circle cx="${X(now)}" cy="${Y(r.q_obs)}" r="3" fill="#0f172a"/>` : ""}
       <text x="${X(now) + 3}" y="${H - 2}" font-size="9" fill="currentColor" opacity=".6">ตอนนี้</text>
       <text x="2" y="10" font-size="9" fill="currentColor" opacity=".6">${nf(mx / 1.1)} ลบ.ม./วิ</text></svg>`;
+  }
+  function recTxt(r) {
+    const rc = r.recession; if (!rc) return "";
+    const ob = r.overbank_now && r.overbank_since ? Math.round((S.upstream.series.now - r.overbank_since) / 3600) : null;
+    return `น้ำลด k = ${nf(rc.k_h)} ชม.${rc.k_from_hist ? " (จากช่วงน้ำลดจริง 30 วัน)" : " (ค่าเริ่มต้น)"} · แนวโน้ม ${rc.trend_qph > 0.5 ? "▲ ขึ้น" : rc.trend_qph < -0.5 ? "▼ ลง" : "ทรงตัว"} ${nf(Math.abs(rc.trend_qph), 1)} ลบ.ม./วิ/ชม.` +
+      (ob != null ? ` · <b style="color:var(--bad)">ล้นตลิ่งมาแล้ว ${durTxt(ob)}</b>` : "") +
+      (r.h_below_bank > 0 ? ` · คาดลดต่ำกว่าความจุลำน้ำใน <b>${durTxt(r.h_below_bank)}</b>` : "") + "<br>";
   }
   function renderUpstream() {
     const u = S.upstream;
@@ -296,9 +309,10 @@
       return `<div class="rv"><div class="t"><span>${r.name}</span><span style="color:${col}">${pct == null ? "–" : nf(pct) + "% ความจุ"}</span></div>
         <div class="bar"><i style="width:${Math.min(pct || 0, 100)}%;background:${col}"></i></div>
         <div class="m">สถานี ${r.gauge} ${r.gauge_name} · ตอนนี้ <b>${nf(r.q_obs)}</b>${r.q_is_est ? "*" : ""} / ${nf(r.qmax)} ลบ.ม./วิ${r.q_is_est ? " (*ประมาณจากระดับน้ำ)" : ""} · ${r.diff > 0 ? `<b style="color:var(--bad)">ล้นตลิ่ง ${nf(r.diff, 2)} ม.</b>` : `ต่ำกว่าตลิ่ง ${nf(-(r.diff ?? NaN), 2)} ม.`}<br>
+        ${recTxt(r)}
         คาดสูงสุด 72 ชม. <b>${nf(r.peak_q)}</b> ลบ.ม./วิ (${r.peak_t ? fmtT(r.peak_t) : "–"})${fp.area_max ? ` · น้ำล้นตลิ่งที่ราบลุ่ม ${nf(fp.area_now)} → สูงสุด ${nf(fp.area_max)} กม² (${nf(fp.vol_max, 1)} ล้าน ลบ.ม.)` : ""}</div>
         ${hydroSvg(r)}</div>`;
-    }).join("") + `<div class="note"><span class="sw" style="background:#0f172a"></span>ค่าตรวจวัด (สะสมทุกชั่วโมง) <span class="sw" style="background:#94a3b8;margin-left:8px"></span>ย้อนหลังโดยประมาณ <span class="sw" style="background:#7c3aed;margin-left:8px"></span>พยากรณ์ = ค่าตรวจวัดตอนนี้ + น้ำท่าจากฝนใน 4 จังหวัดที่กำลังเดินทางมา</div>`;
+    }).join("") + `<div class="note"><span class="sw" style="background:#0f172a"></span>ค่าตรวจวัดรายชั่วโมง (ThaiWater; ช่วงที่ไม่มีปริมาณน้ำเติมด้วย rating curve จากระดับน้ำ) <span class="sw" style="background:#7c3aed;margin-left:8px"></span>พยากรณ์ = ค่าตรวจวัดตอนนี้ → ขึ้นต่อตามแนวโน้มแบบหน่วง แล้วลดตามอัตราน้ำลดในอดีต (k) + น้ำท่าจากฝนใหม่ใน 4 จังหวัด · แม่น้ำเจ้าพระยา = ปิง + น่าน ล่าช้า 12 ชม.</div>`;
     $("#upProv tbody").innerHTML = u.provinces.map(p => `<tr><td><span class="sw" style="background:${PROV_COL[p.code]}"></span>${p.name}</td><td>${nf(p.contrib_km2)}</td><td>${nf(p.rain7d)}</td><td>${nf(p.fc72)}</td><td><b>${nf(p.vol_in_72h_mcm, 1)}</b></td></tr>`).join("");
     // stacked arrival chart
     const s = u.series, W = 340, H = 120, n = s.t.length, codes = Object.keys(s.q);
@@ -417,7 +431,7 @@
       <p><b>ทุก 1 ชั่วโมง</b> — ฝนรายชั่วโมง 30 วัน + พยากรณ์ 72 ชม. (Open-Meteo ปรับแก้ด้วยสถานี ThaiWater) → SCS-CN → น้ำเก็บในคันนา/แอ่ง → <b>ระบายตามทิศการไหลหลายทิศ</b> (linear reservoir, เร็วขึ้นตามความยาวคลองใน hex) + ท่อระบายน้ำในเขตเมือง + <b>สถานีสูบน้ำ</b>ส่งลงแม่น้ำ; <b>ประตูระบายน้ำปิด</b>และการระบายช้าลงเมื่อระดับน้ำในแม่น้ำใกล้ตลิ่ง → ทุก 15 นาที <b>น้ำไหลข้าม hex ตามระดับผิวน้ำเหนือจุดล้น</b> (fill-spill แบบ weir — น้ำแผ่ด้านข้างและไหลย้อนได้, คันกั้นน้ำ/ถนนเป็นจุดล้นที่สูง) → ความลึกเฉลี่ยและสัดส่วนพื้นที่ท่วมใน hex</p>
       <p><b>น้ำจาก 4 จังหวัดต้นน้ำ</b> — DEM ภูมิภาคหาพื้นที่ที่ไหลเข้า นว. จุดน้ำเข้า และเวลาเดินทาง → hydrograph จากฝน (SCS-CN + lag + linear reservoir) ปรับขนาดด้วยปริมาณน้ำจริงของกรมชลประทาน; แม่น้ำสายหลักพยากรณ์ Q = ค่าตรวจวัด + การเปลี่ยนแปลงจากฝนต้นน้ำ ส่วนที่เกินความจุลำน้ำ<b>ฉีดเข้า hex ลำน้ำหลัก</b>แล้วให้ fill-spill กระจายตามระดับผิวน้ำและคันกั้นน้ำ; ลำน้ำสาขาไหลเข้าเครือข่าย hex ตรงจุดน้ำเข้า</p>
       <p><b>แบบจำลอง 2 มิติจุดวิกฤต</b> — local inertial rain-on-grid 120 ม. (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) ทุก 6 ชม.; ใช้สภาพน้ำจากโมเดล hex เป็นเงื่อนไขเริ่มต้นและระดับน้ำสถานีเป็นขอบเขตแม่น้ำ; ผลใช้แสดงรายละเอียดและ<b>สอบเทียบ</b>พารามิเตอร์ของโมเดล hex (pipeline/calibrate.py); มีชุดข้อมูลสำหรับ HEC-RAS 2D ในโฟลเดอร์ hecras/</p>
-      <p><b>ระยะเวลาท่วม</b> — ชั่วโมงที่ความลึก ≥ 10 ซม. ต่อเนื่องถึงปัจจุบัน และเวลาที่คาดว่าจะลดต่ำกว่า 10 ซม. จากการจำลองต่อ (เกิน 72 ชม. ใช้อัตราการลดช่วงท้าย)</p>
+      <p><b>ระยะเวลาท่วม</b> — ชั่วโมงที่ความลึก ≥ 10 ซม. ต่อเนื่องถึงปัจจุบัน และเวลาที่คาดว่าจะลดต่ำกว่า 10 ซม. จากการจำลองต่อ (เกิน 72 ชม. ใช้อัตราการลดช่วงท้าย สูงสุด 14 วัน) · พื้นที่ที่ท่วมจากน้ำล้นตลิ่ง นับจากเวลาที่สถานีหลักของลำน้ำนั้นขึ้นเหนือตลิ่ง (ประวัติรายชั่วโมง 30 วัน) · ปริมาณน้ำในลำน้ำในอนาคตไม่ถือว่าคงที่ แต่ลดลงตามอัตราน้ำลด (recession) ที่วิเคราะห์จากช่วงน้ำลดจริงของแต่ละสถานี</p>
       <h4>ข้อจำกัด</h4><ul>
         <li>โมเดล hex เป็นแบบจำลองเชิงคัดกรองความละเอียด 1 กม² — ใช้ผล 2D ในจุดวิกฤตประกอบ และควรสอบเทียบกับพื้นที่ท่วมจริง (GISTDA) ก่อนใช้ตัดสินใจ</li>
         <li>ข้อมูลโครงสร้างระบายน้ำมาจาก OpenStreetMap ซึ่งอาจไม่ครบ/ไม่มีความจุจริง — เพิ่มข้อมูลจากกรมชลประทาน/เทศบาลได้ใน drainage_assets_user.csv</li>

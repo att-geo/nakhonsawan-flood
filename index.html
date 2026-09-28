@@ -40,8 +40,9 @@
     </nav>
     <div class="tabbody">
       <section data-pane="district" class="pane active">
-        <table class="tbl" id="distTable"><thead><tr><th>อำเภอ</th><th title="พื้นที่ท่วมขัง (≥25 ซม.) ตอนนี้">ตอนนี้<br><small>กม²</small></th><th title="คาดการณ์สูงสุดใน 72 ชม.">72 ชม.<br><small>กม²</small></th><th>ฝน 24 ชม.<br><small>มม.</small></th></tr></thead><tbody></tbody></table>
-        <p class="note">คลิกชื่ออำเภอเพื่อซูมไปยังพื้นที่</p>
+        <table class="tbl" id="distTable"><thead><tr><th>อำเภอ</th><th title="พื้นที่ท่วมขัง (≥25 ซม.) ตอนนี้">ตอนนี้<br><small>กม²</small></th><th title="คาดการณ์สูงสุดใน 72 ชม.">72 ชม.<br><small>กม²</small></th><th>ฝน 24 ชม.<br><small>มม.</small></th><th title="ค่ามัธยฐานถ่วงพื้นที่ของ hex ที่ลึก ≥ 10 ซม. ตอนนี้">ระยะเวลาท่วม<br><small>ท่วมมาแล้ว → ลดใน</small></th></tr></thead><tbody></tbody></table>
+        <div id="durSum" class="note"></div>
+        <p class="note">คลิกชื่ออำเภอเพื่อซูมไปยังพื้นที่ · แถบสี = สัดส่วนพื้นที่ตามเวลาที่คาดว่าน้ำจะลดต่ำกว่า 10 ซม.</p>
       </section>
       <section data-pane="upstream" class="pane">
         <div id="upKpi" class="kpis kpis-in"></div>

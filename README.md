@@ -48,6 +48,8 @@ flowchart LR
 
 - แผนที่ hex 1 กม² แสดงระดับน้ำท่วมขัง 5 ชั้น พร้อม **แถบเวลา −7 วัน ถึง +72 ชม.** (กดเล่นเป็นแอนิเมชันได้)
 - โหมดแผนที่: ท่วมขังตอนนี้ · สูงสุดใน 72 ชม. · ระยะเวลาท่วม · ฝน 24 ชม./7 วัน · ฝนพยากรณ์ 72 ชม.
+- แท็บอำเภอ: พื้นที่ท่วม + **ระยะเวลาท่วม** (ท่วมมาแล้ว → คาดลดใน, แถบสีแยก < 1 วัน / 1–3 / 3–7 / 7–14 / > 14 วัน) และสรุปทั้งจังหวัด
+- แท็บต้นน้ำ: hydrograph ค่าตรวจวัด 7 วัน + พยากรณ์ที่ลดตามอัตราน้ำลดจริงของสถานี, ล้นตลิ่งมาแล้วกี่ชั่วโมง, คาดต่ำกว่าความจุเมื่อไร
 - คลิก hex: ความลึก, สาเหตุ (ฝน/ล้นตลิ่ง), **ท่วมมาแล้วกี่ชั่วโมง, คาดว่าจะลดลงเมื่อไร**, ฝนสะสม, ค่า HAND/CN จาก ArcGIS Pro
 - **แท็บต้นน้ำ**: น้ำจากกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ — ปริมาตรที่จะไหลเข้า นว. ใน 72 ชม. รายจังหวัด, hydrograph + พยากรณ์ของปิง/น่าน-ยม/แม่วงก์/เจ้าพระยา เทียบความจุลำน้ำ, พื้นที่ที่ราบลุ่มน้ำล้นตลิ่ง, แผนที่ลุ่มน้ำและจุดน้ำเข้า
 - **แท็บ 2D จุดวิกฤต**: แผนที่ความลึกความละเอียด 120 ม. (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) ตอนนี้/+24/+48/+72 ชม./สูงสุด, ชั้นคลอง คันกั้นน้ำ สถานีสูบ ประตูระบายน้ำ และผลการสอบเทียบ
@@ -103,7 +105,7 @@ data/static/   hex.geojson, params.json, districts.geojson, province.geojson,
                upstream_zones.json, upstream_entries.json, upstream_basins.geojson   ← จาก ArcGIS Pro
 data/live/     meta, status, frames, stations, districts, series, upstream,
                gauges_hist, rain_cache (.json)                             ← จาก pipeline ทุกชั่วโมง
-pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดล hex v3), upstream.py (น้ำหลากจากต้นน้ำ),
+pipeline/      run_update.py (ดึงข้อมูล + เขียนผล), model.py (โมเดล hex v3), upstream.py (น้ำหลากจากต้นน้ำ), gauges.py (ประวัติสถานี/rating/recession),
                model2d.py + run_hotspots.py (แบบจำลอง 2D), calibrate.py (สอบเทียบ)
 arcgis/        build_static.py, build_upstream.py, build_network.py, build_hotspots.py, NakhonSawanFlood.pyt
 hecras/        ชุดข้อมูลสำหรับ HEC-RAS 2D ของแต่ละจุดวิกฤต
