@@ -8,3 +8,6 @@ hecras/*/terrain.*
 hecras/*/landcover.*
 hecras/*/*.xml
 hecras/*/*.ovr
+
+# โฟลเดอร์ clone ว่างที่ซ้อนอยู่ (ไม่ใช่ส่วนของโปรเจกต์)
+nakhonsawan-flood/
