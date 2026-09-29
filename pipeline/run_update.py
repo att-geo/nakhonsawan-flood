@@ -19,6 +19,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model  # noqa: E402
 import upstream as upm  # noqa: E402
 import gauges as gg  # noqa: E402
+import gistda_obs as gobs  # noqa: E402
 
 TZ = timezone(timedelta(hours=7))
 UA = {"User-Agent": "NakhonSawanFloodWatch/1.1 (+github pages)"}
@@ -164,13 +165,21 @@ def fetch_tw_level(bbox, zref):
     return out
 
 
-def fetch_gistda(key, out_path):
-    url = "https://api-gateway.gistda.or.th/api/2.0/resources/features/flood/3days?pv_idn=60&limit=1000&offset=0"
-    js = get_json(url, headers={"API-Key": key}, timeout=90)
-    feats = js.get("features", [])
+def fetch_gistda(key, out_path, page=1000, max_pages=20):
+    """ดึงพื้นที่น้ำท่วมจากดาวเทียม (แบ่งหน้า — เดิมดึงแค่ 1,000 ฟีเจอร์แรก) เขียน geojson สำหรับแสดงผล และคืน list ของฟีเจอร์"""
+    feats = []
+    for k in range(max_pages):
+        url = f"https://api-gateway.gistda.or.th/api/2.0/resources/features/flood/3days?pv_idn=60&limit={page}&offset={k * page}"
+        js = get_json(url, headers={"API-Key": key}, timeout=90)
+        got = js.get("features", [])
+        if k and got and feats and got[0] == feats[0]:      # API ไม่รองรับ offset (ส่งหน้าเดิมซ้ำ) → หยุด กันฟีเจอร์ซ้ำ
+            break
+        feats += got
+        if len(got) < page:
+            break
     json.dump({"type": "FeatureCollection", "features": feats}, open(out_path, "w", encoding="utf8"),
               ensure_ascii=False, separators=(",", ":"))
-    return len(feats)
+    return feats
 
 
 def river_hours(hrs, reach_hex, up_out, t_now, lon, lat):
@@ -537,7 +546,12 @@ def main(site):
     key = os.environ.get("GISTDA_API_KEY", "").strip()
     if key:
         try:
-            src["gistda"] = {"ok": True, "features": fetch_gistda(key, os.path.join(lv, "gistda_flood.geojson"))}
+            feats_g = fetch_gistda(key, os.path.join(lv, "gistda_flood.geojson"))
+            src["gistda"] = {"ok": True, "features": len(feats_g)}
+            try:                                    # เก็บเป็นสัดส่วนท่วมราย hex รายวัน (หน้าต่าง 3 วันเลื่อนหาย) ไว้สอบเทียบใน calibrate.py
+                src["gistda"]["archive"] = gobs.update(site, feats_g, p["lon"], p["lat"], hk)
+            except Exception as e:                  # ไม่ให้การเก็บสถิติทำให้ผลหลักล้ม
+                src["gistda"]["archive_error"] = str(e)[:200]
         except Exception as e:
             src["gistda"] = {"ok": False, "error": str(e)[:200]}
     else:

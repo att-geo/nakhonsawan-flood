@@ -71,6 +71,8 @@ flowchart LR
 
 (ตัวเลือก) เปิดชั้นน้ำท่วมจากดาวเทียม GISTDA: สมัคร API key ที่ [GISTDA Sphere / Disaster API](https://sphere.gistda.or.th/docs/web-service/disaster-information) แล้วใส่ใน **Settings → Secrets and variables → Actions → New secret** ชื่อ `GISTDA_API_KEY`
 
+เมื่อเปิดแล้ว ระบบจะสะสมภาพน้ำท่วมรายวันเป็นสัดส่วนท่วมราย hex (`data/live/gistda_obs.json`) และใช้เป็นเป้าหมายสอบเทียบร่วมกับแบบจำลอง 2D ในรอบสอบเทียบรายสัปดาห์ (รายละเอียดและข้อจำกัดเรื่องเวลา/การครอบคลุมของภาพ: `docs/ARCHITECTURE.md` หัวข้อ 4e) ตรวจรูปแบบข้อมูลจริงของ API ได้ด้วย `python pipeline/gistda_obs.py --probe data/live/gistda_flood.geojson`
+
 > ⚠️ GitHub ปิด scheduled workflow อัตโนมัติถ้า repo ไม่มี commit 60 วัน — workflow นี้มีขั้นตอน keepalive ให้แล้ว
 > ⚠️ ถ้า runner ของ GitHub (อยู่ต่างประเทศ) ดึง ThaiWater ไม่ได้ ระบบจะยังทำงานด้วย Open-Meteo อย่างเดียว (ดูสถานะในแท็บ "วิธีการ") หรือใช้ self-hosted runner / รัน tool ที่ 2 ใน ArcGIS Pro แทน
 
