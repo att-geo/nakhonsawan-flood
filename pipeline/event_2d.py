@@ -27,13 +27,19 @@ from run_hotspots import _runoff, _idw4, _ponding  # noqa: E402
 TZ7 = timezone(timedelta(hours=7))
 USE = ["Y.5", "N.67", "C.2"]                         # สถานีกรมชลประทาน (รายชั่วโมง, สะอาดกว่าโทรมาตร)
 BANK = {"Y.5": 30.15, "N.67": 28.21, "C.2": 25.70}   # ระดับตลิ่ง (ม.รทก.) จาก ThaiWater
+# โดเมนทั้งจังหวัด (prov_ev): สถานีต่อลำน้ำ + กลุ่มสำหรับจำกัดน้ำเข้าทุ่ง (ความจุคลอง/ประตูน้ำ) แยกลำน้ำ
+USE_BY_HID = {"prov_ev": ["P.16", "P.17", "Y.5", "N.67", "C.2", "CPY002", "C.13", "Ct.5A", "Ct.4", "Ct.19", "Ct.2A"]}
+GROUPS = ["nan", "ping", "cpy", "skg"]                # น่าน–ยม, ปิง, เจ้าพระยา, แม่วงก์–สะแกกรัง
+GROUP_OF = {"Y.5": "nan", "N.67": "nan", "NAN008": "nan", "P.16": "ping", "P.17": "ping", "C.2": "cpy", "CPY001": "cpy",
+            "CPY002": "cpy", "C.13": "cpy", "Ct.5A": "skg", "Ct.4": "skg", "Ct.19": "skg", "Ct.2A": "skg"}
+NORTH_LON = (100.10, 100.62)                          # ขอบเหนือที่รับน้ำบ่าจากพิจิตร (ที่ราบยม–น่าน) ด้วยระดับน้ำ Y.5
 
 
-def clean_series(rows, t0, T):
+def clean_series(rows, t0, T, lo=5, hi=60):
     """[[datetime_local, wl, q], ...] -> ระดับน้ำรายชั่วโมง T ค่า เริ่ม t0 (UTC epoch) : ตัดค่าผิดปกติ + เติมช่องว่าง"""
     t = np.array([datetime.strptime(r[0], "%Y-%m-%d %H:%M").replace(tzinfo=TZ7).timestamp() for r in rows])
     v = np.array([float(r[1]) for r in rows])
-    ok = (v > 5) & (v < 60)
+    ok = (v > lo) & (v < hi)
     t, v = t[ok], v[ok]
     # despike: ห่างจากมัธยฐานเคลื่อนที่ 25 ค่าเกิน 0.8 ม.
     med = np.array([np.median(v[max(i - 12, 0):i + 13]) for i in range(v.size)])
@@ -44,15 +50,18 @@ def clean_series(rows, t0, T):
 
 
 def s1_snap_hours(t0, T, year, s1_dir):
-    """ชั่วโมงของภาพ Sentinel-1 (วงโคจร 62 ~23:09 UTC) ภายในช่วงจำลอง"""
+    """ชั่วโมงของภาพ Sentinel-1 ภายในช่วงจำลอง : วงโคจร 62 (ขาลง) ~23:09 UTC, 172 (ขาขึ้น) ~11:29 UTC
+    ชื่อไฟล์ <date>_wet.npz (ท่าตะโก, วงโคจร 62) หรือ <date>_o<orbit>_wet.npz (ทั้งจังหวัด)"""
     out = {}
     if s1_dir and os.path.isdir(s1_dir):
         for f in sorted(os.listdir(s1_dir)):
             if f.startswith(str(year)) and f.endswith("_wet.npz"):
-                ts = datetime.fromisoformat(f[:10] + "T23:00:00+00:00").timestamp()
+                key = f[:-len("_wet.npz")]
+                hh = "11:30" if "_o172" in key else "23:00"
+                ts = datetime.fromisoformat(f[:10] + f"T{hh}:00+00:00").timestamp()
                 h = int(round((ts - t0) / 3600))
                 if 0 < h < T:
-                    out[f[:10]] = h
+                    out[key] = h
     return out
 
 
@@ -113,23 +122,60 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
     rain_eff = LazyRain(Q, nn, w, inv, (ny, nx))
     # ---- ระดับน้ำสถานี
     st = {s["code"]: s for s in m["stations"]}
-    use = [c for c in USE if c in st and isinstance(F["stations"].get(c), list) and len(F["stations"][c]) > 100]
-    WL = {c: clean_series(F["stations"][c], t0, T) for c in use}
+    sm = F.get("station_meta", {})
+    for c, e in sm.items():                  # สถานีที่ไม่อยู่ในโดเมนตอนสร้าง: z_ref = ค่าต่ำสุดของ DEM รอบสถานี (±1 cell)
+        if c not in st and e.get("lat") is not None:
+            X_ = math.radians(e["lon"]) * 6378137.0; Y_ = math.log(math.tan(math.pi / 4 + math.radians(e["lat"]) / 2)) * 6378137.0
+            ex = m["extent_webm"]; cw = m["cell_webm"]
+            ci_, ri_ = int((X_ - ex[0]) // cw), int((ex[3] - Y_) // cw)
+            if 0 <= ri_ < ny and 0 <= ci_ < nx:
+                win = dom["dem"][max(ri_ - 1, 0):ri_ + 2, max(ci_ - 1, 0):ci_ + 2]
+                st[c] = {"code": c, "name": e["name"], "lat": e["lat"], "lon": e["lon"], "z_ref": round(float(win[win > 0].min()), 2)}
+    bank_of = dict(BANK); bank_of.update({c: float(e["min_bank"]) for c, e in sm.items() if e.get("min_bank")})
+    use = [c for c in USE_BY_HID.get(hid, USE) if c in st and c in bank_of and isinstance(F["stations"].get(c), list) and len(F["stations"][c]) > 100]
+    WL = {}
+    for c in list(use):
+        try:
+            WL[c] = clean_series(F["stations"][c], t0, T, lo=st[c]["z_ref"] - 3, hi=bank_of[c] + 8)
+        except (ValueError, IndexError):
+            use.remove(c)
+    cgrp = None
+    if hid in USE_BY_HID:
+        # หลายลำน้ำในโดเมนเดียว: cell แม่น้ำใช้เฉพาะสถานีในลำน้ำ (กลุ่ม) เดียวกัน — ไม่เฉลี่ยข้ามลำน้ำ
+        # (เช่น แม่วงก์ไม่ควรได้ความลึกจาก C.2) ; ลำน้ำที่ไม่มีข้อมูลสถานีเลย -> ถือเป็นพื้นดินธรรมดา (ไหลตาม DEM)
+        codes_b = [s_["code"] for s_ in m["stations"]]
+        rv = dom["river"]; g_cell = np.full(rv.shape, -1, np.int16)
+        for k_, c_ in enumerate(codes_b):
+            g_cell[rv == k_] = GROUPS.index(GROUP_OF.get(c_, "cpy"))
+        have = {GROUPS.index(GROUP_OF.get(c, "cpy")) for c in use}
+        rv2 = np.where(np.isin(g_cell, list(have)), rv, -1).astype(rv.dtype)
+        dom = dict(dom); dom["river"] = rv2
+        log(f"  cell แม่น้ำ {int((rv >= 0).sum())} -> ใช้ {int((rv2 >= 0).sum())} (ลำน้ำที่มีสถานี: {sorted(GROUPS[g] for g in have)})")
+        cgrp = g_cell
     rr, cc = np.where(dom["river"] >= 0)
     zb = (dom["zbed"] if "zbed" in dom else dom["dem"])[rr, cc].astype(np.float32)
     slat = np.array([st[c]["lat"] for c in use]); slon = np.array([st[c]["lon"] for c in use])
     dk = np.hypot((lo[cc][:, None] - slon[None]) * 107.1, (la[rr][:, None] - slat[None]) * 110.6)
+    if cgrp is not None:
+        sg = np.array([GROUPS.index(GROUP_OF.get(c, "cpy")) for c in use])
+        dk = dk + 1e4 * (cgrp[rr, cc][:, None] != sg[None])
     nn2 = np.argsort(dk, 1)[:, :2]
     wk = 1 / np.maximum(np.take_along_axis(dk, nn2, 1), 0.3) ** 2; wk /= wk.sum(1, keepdims=True)
     D = np.array([np.maximum(WL[c] - st[c]["z_ref"], 0) for c in use])            # [K, T]
-    BH = np.array([max(BANK[c] - st[c]["z_ref"], 0.5) for c in use])
+    BH = np.array([max(bank_of[c] - st[c]["z_ref"], 0.5) for c in use])
     stage_r = lambda hr: zb + (D[nn2, min(hr, T - 1)] * wk).sum(1)
-    bank_r = zb + (BH[nn2] * wk).sum(1) + bank_off
+    if isinstance(bank_off, dict):                  # ตลิ่งใช้งานรายกลุ่มลำน้ำ {"nan": -1.5, "cpy": -2.0, ...}
+        gcell = cgrp[rr, cc] if cgrp is not None else np.zeros(rr.size, int)
+        boff = np.array([float(bank_off.get(GROUPS[g], -1.0)) for g in gcell], np.float32)
+    else:
+        boff = bank_off
+    bank_r = zb + (BH[nn2] * wk).sum(1) + boff
     # ---- ขอบเหนือ: ระดับน้ำ Y.5 (สัมบูรณ์) กับ cell แถวบน 2 แถว
     river = dom["river"].copy()
     n_edge = 0
     if north and "Y.5" in WL:
         edge = np.zeros_like(river, bool); edge[:2, :] = True
+        edge &= (LO >= NORTH_LON[0]) & (LO <= NORTH_LON[1])
         edge &= dom["valid"].astype(bool) & (river < 0)
         river[edge] = 0
         n_edge = int(edge.sum())
@@ -154,13 +200,24 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
     hold = None
     if hold_level is not None:            # แอ่งบึงบอระเพ็ด = พื้นที่รับน้ำที่ไหลลงพื้นที่ศึกษา ∪ ตำบลที่ศึกษา (ไม่รวมแม่น้ำ)
         fs = []
-        for fn_ in ("thatako_contrib.geojson", "thatako_aoi.geojson"):
+        for fn_ in ("thatako_contrib.geojson", "thatako_aoi.geojson"):   # คงกรอบเดิมแม้โดเมนใหญ่ขึ้น
             fs.append(poly_mask(json.load(open(os.path.join(hs, fn_), encoding="utf8"))["features"], LA, LO))
         hold = (fs[0] | fs[1]) & (dom["river"] < 0)
+    # ความจุน้ำเข้าทุ่ง: ค่าเดียว (ทั้งโดเมน) หรือ dict รายกลุ่มลำน้ำ {"nan": 400, "ping": 300, ...}
+    grp = None; ofn = None
+    if isinstance(in_cap, dict):
+        gi = np.array([GROUPS.index(GROUP_OF.get(c, "cpy")) for c in use])
+        rg_r = cgrp[rr, cc] if cgrp is not None else gi[nn2[:, 0]]                  # กลุ่มลำน้ำของ cell
+        grp = np.full(river.shape, -1, np.int32); grp[rr, cc] = rg_r
+        grp[(river >= 0) & (dom["river"] < 0)] = GROUPS.index("nan")                # ขอบเหนือ = น่าน–ยม
+        caps = np.array([float(in_cap.get(g, 1e9)) for g in GROUPS], np.float32)
+        ofn = lambda hr: caps
+    elif in_cap:
+        ofn = lambda hr: float(in_cap)
     tt = time.time()
     r = model2d.run2d(dom2, m, rain_eff, T - 1, stage_fn, h0=None, loss_mmh=loss, snap_hours=tuple(snaps.values()),
-                      river_bank=bank, overflow_fn=(lambda hr: float(in_cap)) if in_cap else None, dur_from=0, zones=dom["aoi"], n_zones=len(m["aoi"]),
-                      hold_mask=hold, hold_level=hold_level)
+                      river_bank=bank, overflow_fn=ofn, dur_from=0, zones=dom["aoi"], n_zones=len(m["aoi"]),
+                      hold_mask=hold, hold_level=hold_level, river_grp=grp)
     rt = round(time.time() - tt, 1)
     od = os.path.join(site, "hecras", hid, "runs"); os.makedirs(od, exist_ok=True)
     name = f"{year}{tag}"
@@ -183,11 +240,17 @@ if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--site", default="."); ap.add_argument("--year", type=int, required=True)
     ap.add_argument("--start", default="08-20"); ap.add_argument("--end", default="12-15")
-    ap.add_argument("--bank-off", type=float, default=0.0); ap.add_argument("--loss", type=float, default=0.2)
+    ap.add_argument("--bank-off", default="0", help="ม. (ค่าเดียว) หรือรายกลุ่มลำน้ำ nan=-1.5,ping=-1.5,cpy=-2,skg=-1"); ap.add_argument("--loss", type=float, default=0.2)
     ap.add_argument("--no-north", action="store_true"); ap.add_argument("--tag", default="")
     ap.add_argument("--s1-dir", default=None); ap.add_argument("--n-mult", type=float, default=1.0)
     ap.add_argument("--hold-level", type=float, default=None, help="ระดับเก็บกักแอ่งบึงบอระเพ็ด (ม.รทก.) ; ไม่ใส่ = ไม่มีคัน/ประตูน้ำ")
-    ap.add_argument("--in-cap", type=float, default=None, help="ปริมาณน้ำเข้าทุ่งจากแม่น้ำรวมสูงสุด (ลบ.ม./วิ) — ความจุคลอง/ประตูน้ำ ; ไม่ใส่ = ไม่จำกัด")
+    ap.add_argument("--in-cap", default=None, help="ปริมาณน้ำเข้าทุ่งจากแม่น้ำรวมสูงสุด (ลบ.ม./วิ) — ความจุคลอง/ประตูน้ำ ; ไม่ใส่ = ไม่จำกัด ; "
+                    "รายกลุ่มลำน้ำ: nan=400,ping=300,cpy=200,skg=100")
+    ap.add_argument("--hid", default="thatako_ev")
     a = ap.parse_args()
-    run(a.site, a.year, a.start, a.end, a.bank_off, a.loss, not a.no_north, a.tag, s1_dir=a.s1_dir, n_mult=a.n_mult,
-        hold_level=a.hold_level, in_cap=a.in_cap)
+    cap = a.in_cap
+    if cap is not None:
+        cap = {k: float(v) for k, v in (x.split("=") for x in cap.split(","))} if "=" in cap else float(cap)
+    bo = {k: float(v) for k, v in (x.split("=") for x in a.bank_off.split(","))} if "=" in a.bank_off else float(a.bank_off)
+    run(a.site, a.year, a.start, a.end, bo, a.loss, not a.no_north, a.tag, hid=a.hid, s1_dir=a.s1_dir, n_mult=a.n_mult,
+        hold_level=a.hold_level, in_cap=cap)

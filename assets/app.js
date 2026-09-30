@@ -154,6 +154,8 @@
     else if (m === "hist") { h = histLegend(); }
     else if (m === "dur") { h = "<b>ระยะเวลาท่วมรวม (ผ่านมา+คาดการณ์)</b>" + ["1–12 ชม.", "12–24 ชม.", "1–3 วัน", "3–7 วัน", "> 7 วัน"].map((t, k) => row(DUR_COL[k + 1], t)).join(""); }
     else { h = `<b>${{ p24: "ฝน 24 ชม.", p7d: "ฝน 7 วัน", f72: "ฝนพยากรณ์ 72 ชม." }[m]} (มม.)</b>` + ["1–10", "10–35", "35–90", "90–150", "> 150"].map((t, k) => row(RAIN_COL[k + 1], t)).join(""); }
+    if (S.pevLayer && map.hasLayer(S.pevLayer)) h += `<b style='margin-top:6px'>ท่วม ≥ 30 วัน ปี ${+S.pevY + 543}: จำลอง vs ดาวเทียม</b>` +
+      [["#2563eb", "ตรงกัน"], ["#ea580c", "จริงแต่จำลองไม่ถึง"], ["#facc15", "จำลองเกิน"]].map(([c, t]) => row(c, t)).join("");
     if (S.suscMeta && map.hasLayer(S.susc)) h += "<b style='margin-top:6px'>พื้นที่ลุ่มต่ำ (HAND)</b>" + S.suscMeta.classes.map((t, k) => row(S.suscMeta.colors[k], t)).join("");
     $("#legend").innerHTML = h;
   }
@@ -595,6 +597,7 @@
       <div class="h-kpi"><div>ท่วม ≥ 30 วัน ≥ 3 ปี<b>${nf(j.prov_ge30d_ge3y_km2)} กม²</b></div><div>ท่วม ≥ 60 วัน ≥ 3 ปี<b>${nf(j.prov_ge60d_ge3y_km2)} กม²</b></div><div>แหล่งน้ำถาวร (ตัดออก)<b>${nf(j.perm_water_km2)} กม²</b></div></div>
       <div class="seg"><button id="histOn" class="${S.mode === "hist" ? "active" : ""}">แสดงบนแผนที่</button><button id="histOff">ซ่อน</button></div>
       <h3>พื้นที่ท่วมนานรายปี</h3>${histChartSvg(j)}
+      <div id="pevBox"></div>
       <h3>รายอำเภอ</h3>
       <table class="tbl"><thead><tr><th>อำเภอ</th><th>≥30 วัน ≥3 ปี<br><small>กม²</small></th><th>≥60 วัน ≥3 ปี<br><small>กม²</small></th><th>ปีหนักสุด<br><small>≥60 วัน กม²</small></th></tr></thead>
       <tbody>${j.district.map(d => `<tr data-a="${d.district}"><td>${d.district}</td><td>${nf(d.ge30d_ge3y_km2, 1)}</td><td>${nf(d.ge60d_ge3y_km2, 1)}</td><td>${worst(d)}</td></tr>`).join("")}</tbody></table>
@@ -609,9 +612,49 @@
     $("#histAll").onclick = () => { S.histAll = !S.histAll; renderHist(); };
     $$("#histBox tr[data-a]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomAmphoe(r.dataset.a); });
     $$("#histBox tr[data-k]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomTam(+r.dataset.k); });
+    renderPev();
+  }
+  // ---------------------------------------------------------------- แบบจำลอง 2D ทั้งจังหวัด เทียบ Sentinel-1 (event_2d.py --hid prov_ev)
+  S.pev = null; S.pevLayer = null; S.pevY = null;
+  jOpt("data/static/prov_events.json", "s9").then(j => { S.pev = j; renderPev(); });
+  function pevShow(y) {
+    if (S.pevLayer) { map.removeLayer(S.pevLayer); layerCtl.removeLayer(S.pevLayer); S.pevLayer = null; }
+    S.pevY = y;
+    if (y && S.pev?.years?.[y]) {
+      if (S.mode === "hist") setMapMode("class");
+      S.pevLayer = L.imageOverlay(`data/static/${S.pev.years[y].png}`, S.pev.bounds, { opacity: .9, interactive: false }).addTo(map);
+      layerCtl.addOverlay(S.pevLayer, `แบบจำลอง vs ดาวเทียม ปี ${+y + 543}`);
+      map.fitBounds(S.pev.bounds);
+    }
+    renderPev(); renderLegend();
+  }
+  function renderPev() {
+    const box = $("#pevBox"), j = S.pev; if (!box || !j || !Object.keys(j.years || {}).length) { if (box) box.innerHTML = ""; return; }
+    const ys = Object.keys(j.years), y = S.pevY && j.years[S.pevY] ? S.pevY : null, v = y ? j.years[y] : null;
+    const leg = [["#2563eb", "ตรงกัน"], ["#ea580c", "ท่วมจริงแต่จำลองไม่ถึง"], ["#facc15", "จำลองเกิน"], ["#94a3b8", "แหล่งน้ำถาวร"]]
+      .map(([c, t]) => `<span class="sw" style="background:${c}"></span>${t}`).join(" ");
+    const sumRow = yy => { const g = j.years[yy].ge30d;
+      return `<tr data-y="${yy}"${yy === y ? ' style="background:var(--chip)"' : ""}><td>${+yy + 543}</td><td>${nf(g.obs_km2)}</td><td>${nf(g.mod_km2)}</td><td>${nf(g.pod, 2)}</td><td>${nf(g.far, 2)}</td><td><b>${nf(g.csi, 2)}</b></td><td>${nf(j.years[yy].daily_csi_mean, 2)}</td></tr>`; };
+    const dRows = v ? Object.entries(v.district).filter(([, g]) => g.obs_km2 >= 2 || g.mod_km2 >= 2).sort((a, b) => b[1].obs_km2 - a[1].obs_km2)
+      .map(([d, g]) => `<tr data-a="${d}"><td>${d}</td><td>${nf(g.obs_km2)}</td><td>${nf(g.mod_km2)}</td><td>${nf(g.pod, 2)}</td><td>${nf(g.far, 2)}</td><td>${nf(g.csi, 2)}</td></tr>`).join("") : "";
+    box.innerHTML = `<h3>แบบจำลอง 2D ทั้งจังหวัด เทียบน้ำท่วมจริง</h3>
+      <p class="note">${j.note}</p>
+      <table class="tbl"><thead><tr><th>ปี</th><th>ท่วม ≥30 วัน จริง<br><small>กม²</small></th><th>จำลอง<br><small>กม²</small></th><th>POD</th><th>FAR</th><th>CSI</th><th>CSI รายภาพ<br><small>เฉลี่ย</small></th></tr></thead>
+      <tbody>${ys.map(sumRow).join("")}</tbody></table>
+      <div class="seg" style="margin-top:6px">${ys.map(yy => `<button data-pev="${yy}" class="${yy === y ? "active" : ""}">แผนที่ปี ${String(+yy + 543).slice(2)}</button>`).join("")}<button data-pev="">ซ่อน</button></div>
+      ${y ? `<p class="note" style="margin:6px 0">${leg}</p>
+      <table class="tbl"><thead><tr><th>อำเภอ (ปี ${+y + 543})</th><th>จริง<br><small>กม²</small></th><th>จำลอง<br><small>กม²</small></th><th>POD</th><th>FAR</th><th>CSI</th></tr></thead><tbody>${dRows}</tbody></table>
+      <table class="tbl" style="margin-top:8px"><thead><tr><th>ตำบล (ปี ${+y + 543})</th><th>จริง<br><small>กม²</small></th><th>จำลอง<br><small>กม²</small></th><th>CSI</th></tr></thead><tbody>${
+        (j.tambon || []).filter(t => t.by_year[y] && (t.by_year[y].obs_km2 >= 1 || t.by_year[y].mod_km2 >= 1)).sort((a, b) => b.by_year[y].obs_km2 - a.by_year[y].obs_km2).slice(0, 25)
+          .map(t => { const g = t.by_year[y]; return `<tr><td>${t.name}<div class="note">${t.district}</div></td><td>${nf(g.obs_km2, 1)}</td><td>${nf(g.mod_km2, 1)}</td><td>${nf(g.csi, 2)}</td></tr>`; }).join("")}</tbody></table>
+      <p class="note">25 ตำบลที่ท่วมจริงมากที่สุด</p>` : ""}`;
+    $$("#pevBox [data-pev]").forEach(b => b.onclick = () => pevShow(b.dataset.pev || null));
+    $$("#pevBox tr[data-y]").forEach(r => r.onclick = () => pevShow(r.dataset.y));
+    $$("#pevBox tr[data-a]").forEach(r => r.onclick = () => zoomAmphoe(r.dataset.a));
   }
   function setMapMode(m, fit = false) {
     S.mode = m; $("#mode").value = m; histOverlay(m === "hist", fit);
+    if (m === "hist" && S.pevLayer) { map.removeLayer(S.pevLayer); layerCtl.removeLayer(S.pevLayer); S.pevLayer = null; S.pevY = null; }
     styleHex(); renderLegend(); if (S.ph) { const b = $("#histOn"); if (b) { b.classList.toggle("active", m === "hist"); } }
   }
   // ---------------------------------------------------------------- สถานการณ์สมมติ (ไม่ขึ้นกับฝนวันนี้): ฝน × ระดับน้ำแม่น้ำ

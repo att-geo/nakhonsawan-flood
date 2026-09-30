@@ -22,12 +22,13 @@ def load_domain(path):
 
 def run2d(dom, meta, rain_eff, t_hours, stage_fn, h0=None, alpha=0.7, hcap=3.0, loss_mmh=0.3,
           snap_hours=(), stats_every=1, river_bank=None, overflow_fn=None,
-          dur_from=None, wet_thr=0.10, zones=None, n_zones=0, hold_mask=None, hold_level=None):
+          dur_from=None, wet_thr=0.10, zones=None, n_zones=0, hold_mask=None, hold_level=None, river_grp=None):
     """rain_eff: [T, ny, nx] มม./ชม. (น้ำท่าจากฝน) หรือ [T] ค่าเดียวทั้งโดเมน — ชั่วโมงที่เกินความยาว = ไม่มีฝน
     dur_from: ชั่วโมงเริ่มนับระยะเวลาท่วมขัง (h ≥ wet_thr) ราย cell -> wet_h (ชม.ที่ท่วม), last_wet (ชม.สุดท้ายที่ยังท่วม, -1 = ไม่ท่วม)
     zones/n_zones: index พื้นที่ (เช่น ตำบล, -1 = นอก) -> zseries พื้นที่ท่วมรายชั่วโมงราย zone (กม²)
     hold_mask/hold_level: แอ่งที่มีคัน/ประตูน้ำกั้น (เช่น บึงบอระเพ็ด) — น้ำไหลออกข้ามขอบแอ่งไม่ได้เมื่อระดับน้ำในแอ่งต่ำกว่า hold_level
                           (ม.รทก. ; ค่าเดียว หรือ ฟังก์ชันของชั่วโมง) ; น้ำไหลเข้าแอ่งได้ตามปกติ
+    river_grp: กลุ่มลำน้ำราย cell (-1 = ไม่ใช่แม่น้ำ) — เมื่อ overflow_fn คืน array ความจุน้ำเข้าทุ่งรายกลุ่ม (ลบ.ม./วิ) จะจำกัดแยกกลุ่ม
     stage_fn(t_hour) -> ndarray ระดับผิวน้ำของ cell แม่น้ำ (ลำดับตาม np.where(river>=0)) หรือ dict station_index -> ระดับน้ำ (ม.รทก.)
     คืน dict: hmax, snaps{hour: h}, series (พื้นที่ท่วม/ปริมาตรรายชั่วโมง)"""
     f4 = np.float32
@@ -40,6 +41,7 @@ def run2d(dom, meta, rain_eff, t_hours, stage_fn, h0=None, alpha=0.7, hcap=3.0, 
     zmx = np.maximum(z[:, :-1], z[:, 1:]); zmy = np.maximum(z[:-1, :], z[1:, :])
     nnx = (0.5 * (n[:, :-1] ** 2 + n[:, 1:] ** 2)).astype(f4); nny = (0.5 * (n[:-1, :] ** 2 + n[1:, :] ** 2)).astype(f4)
     riv = river >= 0
+    rg = np.where(riv, river_grp, 0).astype(np.int32) if river_grp is not None else None
     # ตลิ่ง: ถ้าระดับน้ำในแม่น้ำต่ำกว่าตลิ่ง ห้ามน้ำไหลจาก cell แม่น้ำขึ้นที่ราบ
     # (ตลิ่ง/คันดินแคบกว่าขนาด cell จึงหายไปเมื่อ resample DEM เป็น 120 ม.) — ที่ราบยังระบายลงแม่น้ำได้ตามปกติ
     riv_xl = riv[:, :-1] & ~riv[:, 1:]; riv_xr = ~riv[:, :-1] & riv[:, 1:]
@@ -125,11 +127,20 @@ def run2d(dom, meta, rain_eff, t_hours, stage_fn, h0=None, alpha=0.7, hcap=3.0, 
             # อนุรักษ์มวล: น้ำจากแม่น้ำขึ้นที่ราบรวมกันไม่เกินปริมาณที่เกินความจุลำน้ำ (ขอบเขตระดับน้ำไม่ใช่แหล่งน้ำไม่จำกัด)
             qxi = qx[:, 1:-1]; qyi = qy[1:-1, :]
             fx1 = riv_xl & (qxi > 0); fx2 = riv_xr & (qxi < 0); fy1 = riv_yt & (qyi > 0); fy2 = riv_yb & (qyi < 0)
-            F = (qxi[fx1].sum() - qxi[fx2].sum() + qyi[fy1].sum() - qyi[fy2].sum()) * dx
-            if F > ovl:
-                k_ = ovl / F
-                for arr, msk in ((qxi, fx1), (qxi, fx2), (qyi, fy1), (qyi, fy2)):
-                    arr[msk] *= k_
+            if np.ndim(ovl) == 0:
+                F = (qxi[fx1].sum() - qxi[fx2].sum() + qyi[fy1].sum() - qyi[fy2].sum()) * dx
+                if F > ovl:
+                    k_ = ovl / F
+                    for arr, msk in ((qxi, fx1), (qxi, fx2), (qyi, fy1), (qyi, fy2)):
+                        arr[msk] *= k_
+            else:                                    # แยกกลุ่มลำน้ำ (กลุ่มของ cell แม่น้ำฝั่งต้นทางของหน้า)
+                ng = len(ovl)
+                gx1 = rg[:, :-1][fx1]; gx2 = rg[:, 1:][fx2]; gy1 = rg[:-1, :][fy1]; gy2 = rg[1:, :][fy2]
+                F = (np.bincount(gx1, qxi[fx1], ng) - np.bincount(gx2, qxi[fx2], ng)
+                     + np.bincount(gy1, qyi[fy1], ng) - np.bincount(gy2, qyi[fy2], ng)) * dx
+                k_ = np.where(F > ovl, ovl / np.maximum(F, 1e-9), 1.0).astype(f4)
+                if (k_ < 1).any():
+                    qxi[fx1] *= k_[gx1]; qxi[fx2] *= k_[gx2]; qyi[fy1] *= k_[gy1]; qyi[fy2] *= k_[gy2]
         # --- open boundary on domain edge: normal-depth outflow (slope 1e-3)
         hb = np.maximum(h, 0)
         ob = lambda hh, nb: hh ** (5 / 3) * np.sqrt(1e-3) / np.sqrt(nb)

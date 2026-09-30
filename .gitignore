@@ -17,3 +17,6 @@ hecras/thatako_ev/runs/*
 !hecras/thatako_ev/runs/*_b10c400h*
 !hecras/thatako_ev/runs/_cmp_status.json
 !hecras/thatako_ev/runs/events_vs_s1.png
+
+# ผลจำลองทั้งจังหวัด — เก็บเฉพาะสรุป (json/png) ไม่เก็บ npz ขนาดใหญ่
+hecras/prov_ev/runs/*.npz
