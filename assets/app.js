@@ -54,7 +54,7 @@
       jOpt("data/static/province.geojson", "s1"), jOpt("data/static/districts.geojson", "s1"),
       jOpt("data/static/susceptibility.json", "s1")]);
     S.params = params;
-    S.hexLayer = L.geoJSON(hex, { renderer, style: () => ({ weight: 0, fillOpacity: 0 }), onEachFeature: (f, l) => l.on("click", e => hexPopup(f.properties.i, e.latlng)) });
+    S.hexLayer = L.geoJSON(hex, { renderer, style: () => ({ weight: 0, fillOpacity: 0 }), onEachFeature: (f, l) => l.on("click", e => S.view === "simple" ? simplePopup(f.properties.i, e.latlng) : hexPopup(f.properties.i, e.latlng)) });
     S.hexLayer.addTo(map);
     layerCtl.addOverlay(S.hexLayer, "ผลวิเคราะห์ราย hex (1 กม²)");
     if (dist) {
@@ -123,7 +123,7 @@
   // ---------------------------------------------------------------- render
   function renderAll() {
     setLiveDot(S.meta); renderKpis(); styleHex(); renderLegend(); renderTimelineLabel();
-    renderDistricts(); renderStations(); renderRain(); renderUpstream(); renderHot(); renderAbout();
+    renderDistricts(); renderStations(); renderRain(); renderUpstream(); renderHot(); renderAbout(); renderSimple();
   }
 
   function hexStyleFn() {
@@ -145,6 +145,8 @@
   }
 
   function renderLegend() {
+    if (!S.frames) return;
+    if (S.view === "simple") { $("#legend").innerHTML = simpleLegend(); return; }
     const m = S.mode; let h = "";
     const row = (c, t) => `<div class="row"><span class="sw" style="background:${c}"></span>${t}</div>`;
     if (m === "class" || m === "m72" || m === "u72") { h = `<b>${m === "class" ? "ความลึกน้ำท่วมขัง (ประมาณ)" : m === "m72" ? "ความลึกสูงสุดใน 72 ชม." : "น้ำล้นตลิ่ง/ต้นน้ำ สูงสุด 72 ชม."}</b>` + CLS_LBL.slice(1).map((t, k) => row(CLS_COL[k + 1], t)).join(""); }
@@ -193,7 +195,8 @@
       const lv = s.diff > 0 ? 5 : (s.situation || 3);
       const mk = L.circleMarker([s.lat, s.lon], { renderer, radius: 7, color: "#fff", weight: 2, fillColor: WL_COL[lv] || "#64748b", fillOpacity: 1 });
       mk.bindPopup(wlPopup(s)); s._mk = mk; return mk;
-    })).addTo(map);
+    }));
+    if (S.view !== "simple") S.stLayer.addTo(map);
     layerCtl.addOverlay(S.stLayer, "สถานีระดับน้ำ (ThaiWater)");
     S.rainLayer = L.layerGroup(st.rain.filter(s => s.rain_24h > 0).map(s => {
       const mk = L.circleMarker([s.lat, s.lon], { renderer, radius: 3 + Math.min(s.rain_24h, 150) / 20, color: "#334155", weight: 1, fillColor: binCol(s.rain_24h, RAIN_BR, RAIN_COL), fillOpacity: .9 });
@@ -597,6 +600,253 @@
         <li>FABDEM V1-2 (Hawker et al. 2022, CC BY-NC-SA 4.0) · Copernicus DEM GLO-30 (© DLR/Airbus, ESA) · ESA WorldCover 2021 (CC BY 4.0) · OpenStreetMap (ODbL) · geoBoundaries</li></ul>`;
   }
 
+  // ---------------------------------------------------------------- โหมดดูแบบง่าย (สำหรับประชาชนทั่วไป)
+  // ภาษาง่าย: ความลึกเทียบกับร่างกาย, พื้นที่เป็นไร่, เวลาเป็นวัน, สีสัญญาณไฟ ; ข้อมูลชุดเดียวกับโหมดละเอียด
+  const DEPTH_WORD = ["ไม่มีน้ำท่วม", "ระดับข้อเท้า", "ระดับเข่า", "ระดับเอว", "สูงกว่าเอว"];
+  const DEPTH_CM = ["", "10–25 ซม.", "25–50 ซม.", "50 ซม.–1 ม.", "เกิน 1 เมตร"];
+  const LV = [
+    { t: "ปกติ", big: "ยังไม่มีน้ำท่วมที่น่ากังวล" },
+    { t: "เฝ้าระวัง", big: "มีน้ำท่วมบางพื้นที่" },
+    { t: "เตือนภัย", big: "น้ำท่วมหลายพื้นที่" },
+    { t: "อันตราย", big: "น้ำท่วมหนัก" }];
+  const WATER_Y = [84, 75, 63, 46, 28];            // ระดับน้ำบนรูปคน (ข้อเท้า เข่า เอว อก)
+  const person = (c, cls = "") => `<svg viewBox="0 0 60 84" class="${cls}" aria-hidden="true">
+    <circle cx="30" cy="10" r="7" fill="#64748b"/>
+    <path d="M22 20H38Q42 20 42 24V46H37V82H31V56H29V82H23V46H18V24Q18 20 22 20Z" fill="#64748b"/>
+    ${c > 0 ? `<rect x="0" y="${WATER_Y[c]}" width="60" height="${84 - WATER_Y[c]}" fill="${c >= 4 ? "#1e40af" : "#3b82f6"}" fill-opacity=".62"/>
+    <path d="M0 ${WATER_Y[c]} q7.5 -3 15 0 t15 0 t15 0 t15 0" fill="none" stroke="#1d4ed8" stroke-width="1.6"/>` :
+    `<line x1="4" y1="83" x2="56" y2="83" stroke="#94a3b8" stroke-width="2"/>`}</svg>`;
+  const raiTxt = km2 => {
+    const r = (km2 || 0) * 625;                    // 1 ตร.กม. = 625 ไร่
+    if (r < 50) return "ไม่ถึง 50 ไร่";
+    if (r >= 1e6) return `${nf(r / 1e6, 1)} ล้านไร่`;
+    if (r >= 1e5) return `${nf(r / 1e5, 1)} แสนไร่`;
+    if (r >= 1e4) return `${nf(r / 1e4, 1)} หมื่นไร่`;
+    return `${nf(Math.round(r / 100) * 100)} ไร่`;
+  };
+  const sinceTxt = h => h == null || h < 0 ? "ไม่ทราบ" : h < 1 ? "เพิ่งเริ่ม" : h < 24 ? `${h} ชั่วโมง` : `ประมาณ ${Math.round(h / 24)} วัน`;
+  const leftTxt = h => h == null || h < 0 ? "ไม่ทราบ" : h >= 999 ? "นานกว่า 2 สัปดาห์" : h <= 12 ? "ภายในครึ่งวัน" : h <= 24 ? "ภายใน 1 วัน" : `ประมาณ ${Math.round(h / 24)} วัน`;
+  const dayTxt = unix => new Date(unix * 1000).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", weekday: "long", day: "numeric", month: "short" });
+  const trendOf = (a, b) => b > a * 1.1 + 0.5 ? { c: "up", i: "▲", t: "น้ำจะเพิ่มขึ้น" } : b < a * 0.9 - 0.5 ? { c: "down", i: "▼", t: "น้ำจะลดลง" } : { c: "flat", i: "■", t: "ใกล้เคียงเดิม" };
+  const store = { get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }, set(k, v) { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch (e) { } } };
+
+  function provLevel() {
+    const s = S.meta.summary, a = s.km2_watch || 0;
+    let lv = a < 2 ? 0 : a < 100 ? 1 : a < 500 ? 2 : 3;
+    if (lv === 0 && (s.wl_over_bank > 0 || (s.km2_72h || 0) >= 2)) lv = 1;
+    return lv;
+  }
+  function rainWord(mm) { return mm < 5 ? "แทบไม่มีฝน" : mm < 20 ? "ฝนเล็กน้อย" : mm < 50 ? "ฝนปานกลาง" : mm < 100 ? "ฝนหนัก" : "ฝนหนักมาก"; }
+  function nearestHex(lat, lon) {
+    const p = S.params; let best = -1, bd = 1e9;
+    const kx = Math.cos(lat * Math.PI / 180);
+    for (let i = 0; i < p.n; i++) { const dx = (p.lon[i] - lon) * kx, dy = p.lat[i] - lat, d = dx * dx + dy * dy; if (d < bd) { bd = d; best = i; } }
+    return Math.sqrt(bd) * 111 < 1.2 ? best : -1;   // ห่างจาก hex ใกล้สุดเกิน ~1 กม. = อยู่นอกจังหวัด
+  }
+  function frameAtDay(d) {
+    const tgt = S.frames.now + d * 86400; let k = 0, bd = Infinity;
+    S.frames.t.forEach((t, i) => { const x = Math.abs(t - tgt); if (x < bd) { bd = x; k = i; } });
+    return k;
+  }
+
+  // จำนวน hex ที่มีน้ำ (≥ 10 ซม.) ในเฟรม k ทั้งจังหวัดและรายอำเภอ — ใช้บอกแนวโน้ม "อีก 3 วัน"
+  function floodCount(k) {
+    const f = S.frames.c[k], p = S.params, a = new Array(p.amphoe_list.length).fill(0); let all = 0;
+    for (let i = 0; i < f.length; i++) if (f.charCodeAt(i) > 48) { all++; a[p.amph[i]]++; }
+    return { all, a };
+  }
+  // ความลึก "ส่วนใหญ่" ของแต่ละอำเภอ = ชั้นมัธยฐานถ่วงพื้นที่ท่วม (ตัวเลขลึกสุดอย่างเดียวทำให้ดูน่ากลัวเกินจริง)
+  function typicalDepth() {
+    const st = S.status, p = S.params, acc = p.amphoe_list.map(() => [0, 0, 0, 0, 0]);
+    for (let i = 0; i < st.n; i++) if (st.c[i] > 0) acc[p.amph[i]][st.c[i]] += st.f ? Math.max(st.f[i], 1) : 100;
+    return acc.map(w => { const tot = w.reduce((x, y) => x + y, 0); if (!tot) return 0; let c = 0, s = 0; for (let k = 1; k < 5; k++) { s += w[k]; if (s >= tot / 2) { c = k; break; } } return c; });
+  }
+  // ข้อมูลของจุดหนึ่ง (hex) เป็นประโยคภาษาง่าย
+  function placeInfo(i) {
+    const st = S.status, p = S.params, isNow = S.frames.t[S.frame] === S.frames.now;
+    const c = isNow ? st.c[i] : +S.frames.c[S.frame][i];
+    const amp = p.amphoe_list[p.amph[i]];
+    const cause = st.s[i] === 1 ? "น้ำฝนตกหนักแล้วระบายไม่ทัน" : st.s[i] === 2 ? "น้ำจากแม่น้ำ/ลำน้ำล้นตลิ่ง" : st.s[i] === 3 ? "ทั้งน้ำฝนขังและน้ำจากแม่น้ำล้นตลิ่ง" : "";
+    const when = isNow ? "ตอนนี้" : `วัน${dayTxt(S.frames.t[S.frame]).replace(/^วัน/, "")}`;
+    const lines = [];
+    if (c > 0) {
+      if (isNow) {
+        lines.push(`ท่วมมาแล้ว <b>${sinceTxt(st.h[i])}</b> · น่าจะลดใน <b>${leftTxt(st.r[i])}</b>`);
+        if (cause) lines.push(`สาเหตุ: ${cause}`);
+      }
+    } else if (st.m72[i] > 0) lines.push(`<b class="up">อีก 3 วันข้างหน้าอาจมีน้ำท่วม${DEPTH_WORD[st.m72[i]]}</b>`);
+    if (c > 0 && isNow && st.m72[i] > c) lines.push(`<b class="up">3 วันข้างหน้าอาจสูงขึ้นถึง${DEPTH_WORD[st.m72[i]]}</b>`);
+    if (p.f_low[i] > 0.5 && c === 0) lines.push("เป็นที่ลุ่มต่ำ น้ำท่วมง่ายกว่าบริเวณรอบ ๆ");
+    lines.push(`ฝนตกแล้ว 24 ชม.: ${nf(st.p24[i])} มม. (${rainWord(st.p24[i])}) · 3 วันข้างหน้า: ${nf(st.f72[i])} มม. (${rainWord(st.f72[i])})`);
+    const sp = isNow ? "" : " ";
+    const head = c > 0 ? `${when}${sp}น้ำท่วม${DEPTH_WORD[c]}` : `${when}${sp}ไม่มีน้ำท่วมขัง`;
+    const sub = c > 0 ? `ประมาณ ${DEPTH_CM[c]}${isNow && st.d[i] > 0 ? ` (เฉลี่ย ${nf(st.d[i])} ซม.)` : ""}` : "";
+    return { c, amp, head, sub, lines };
+  }
+  function simplePopup(i, latlng) {
+    const q = placeInfo(i);
+    const html = `<div class="pp"><h4>จุดที่เลือก · อ.${q.amp}</h4>
+      <div class="pbig">${person(q.c)}<div><b>${q.head}</b><span class="note">${q.sub}</span></div></div>
+      ${q.lines.map(x => `<p>${x}</p>`).join("")}
+      <p class="note">เป็นค่าเฉลี่ยของพื้นที่ราว 1 ตร.กม. รอบจุดนี้ บ้านที่อยู่สูงหรือต่ำกว่าอาจต่างไป</p>
+      <p><a data-home="${i}">บันทึกเป็น “บ้านของฉัน”</a> · <a data-detail="${i}">ดูข้อมูลละเอียด</a></p></div>`;
+    const pop = L.popup({ maxWidth: 300 }).setLatLng(latlng).setContent(html).openOn(map);
+    const el = pop.getElement();
+    el.querySelector("[data-home]").onclick = () => { setHome(i); map.closePopup(); };
+    el.querySelector("[data-detail]").onclick = () => { setView("expert"); hexPopup(i, latlng); };
+  }
+
+  let homeMk = null;
+  function setHome(i, fly = false) {
+    S.home = i; store.set("nsf_home", i == null ? null : String(i));
+    if (homeMk) { map.removeLayer(homeMk); homeMk = null; }
+    if (i != null && i >= 0) {
+      const ll = [S.params.lat[i], S.params.lon[i]];
+      homeMk = L.marker(ll, { title: "บ้านของฉัน", icon: L.divIcon({ className: "", iconSize: [30, 30], iconAnchor: [15, 28],
+        html: `<svg viewBox="0 0 30 30" width="30" height="30"><path d="M15 2 2 13h4v14h7v-8h4v8h7V13h4z" fill="#dc2626" stroke="#fff" stroke-width="2"/></svg>` }) }).addTo(map);
+      homeMk.on("click", e => simplePopup(i, e.latlng));
+      if (fly) map.setView(ll, 12);
+    }
+    renderSimple();
+  }
+  function locateMe() {
+    const msg = $("#homeMsg");
+    if (!navigator.geolocation) { msg.textContent = "เครื่องนี้หาตำแหน่งไม่ได้ ให้แตะบนแผนที่ตรงบ้านของคุณแทน"; return; }
+    msg.textContent = "กำลังหาตำแหน่ง…";
+    navigator.geolocation.getCurrentPosition(pos => {
+      const i = nearestHex(pos.coords.latitude, pos.coords.longitude);
+      if (i < 0) { msg.textContent = "ตำแหน่งของคุณอยู่นอกจังหวัดนครสวรรค์ ให้แตะบนแผนที่ตรงบ้านที่ต้องการดูแทน"; return; }
+      setHome(i, true);
+    }, () => { msg.textContent = "ไม่ได้รับอนุญาตให้ใช้ตำแหน่ง ให้แตะบนแผนที่ตรงบ้านของคุณแทน"; }, { enableHighAccuracy: true, timeout: 12000 });
+  }
+
+  function renderSimple() {
+    const box = $("#simple"); if (!box || !S.meta || !S.status) return;
+    const s = S.meta.summary, lv = provLevel(), du = s.duration || {};
+    const dist = (S.districts || []).slice().sort((a, b) => (b.km2_watch || 0) - (a.km2_watch || 0));
+    const hit = dist.filter(d => (d.km2_watch || 0) >= 0.5), calm = dist.filter(d => (d.km2_watch || 0) < 0.5);
+    const st = S.status, p = S.params;
+    const cNow = floodCount(S.frames.t.indexOf(S.frames.now)), c72 = floodCount(frameAtDay(3));
+    const tr = trendOf(cNow.all, c72.all), typ = typicalDepth();
+    let f72 = 0, p24 = 0, n = 0;
+    for (let i = 0; i < st.n; i++) if (!(p.f_water[i] > 0.5)) { f72 += st.f72[i]; p24 += st.p24[i]; n++; }
+    f72 /= n || 1; p24 /= n || 1;
+
+    // 1) ภาพรวมจังหวัด
+    let heroTxt = lv === 0 ? "ทั้งจังหวัดยังไม่มีน้ำท่วมขังที่น่ากังวล ติดตามข่าวสารตามปกติ" :
+      `ตอนนี้มีน้ำท่วมใน <b>${hit.length} อำเภอ</b>${hit[0] ? ` มากที่สุดที่ <b>อ.${hit[0].amphoe}</b>` : ""}`;
+    if (lv > 0 && du.r_med != null) heroTxt += `<br>พื้นที่ส่วนใหญ่น่าจะลดใน <b>${leftTxt(du.r_med)}</b>`;
+    const hero = `<div class="s-card s-hero lv${lv}">
+      <div class="lv">สถานการณ์ จ.นครสวรรค์ · ระดับ “${LV[lv].t}”</div>
+      <div class="big">${LV[lv].big}</div><p>${heroTxt}</p>
+      <div class="facts">
+        <div>พื้นที่น้ำท่วม<b>${raiTxt(s.km2_watch)}</b></div>
+        <div>3 วันข้างหน้า<b>${tr.i} ${tr.t.replace("น้ำจะ", "")}</b></div>
+        <div>ฝน 3 วันข้างหน้า<b>${rainWord(f72).replace("ฝน", "") || "–"}</b></div>
+      </div></div>`;
+
+    // 2) บ้านของฉัน
+    let homeHtml;
+    if (S.home != null && S.home >= 0) {
+      const q = placeInfo(S.home);
+      homeHtml = `<div class="s-place">${person(q.c)}<div class="txt"><b>${q.head}</b><span>${q.sub ? q.sub + " · " : ""}อ.${q.amp}</span></div></div>
+        ${q.lines.map(x => `<p class="s-small" style="margin:4px 0;color:var(--ink)">${x}</p>`).join("")}
+        <div class="s-row" style="margin-top:8px"><button class="s-btn ghost" id="homeGo">ดูบนแผนที่</button><button class="s-btn ghost" id="homeLoc">ใช้ตำแหน่งปัจจุบัน</button><button class="s-btn ghost" id="homeClr">ลบ</button></div>`;
+    } else {
+      homeHtml = `<p style="margin:0 0 8px">ดูว่าบ้านของคุณน้ำท่วมไหม ลึกแค่ไหน และอีกกี่วันจะลด</p>
+        <div class="s-row"><button class="s-btn" id="homeLoc">📍 ใช้ตำแหน่งของฉัน</button></div>
+        <p class="s-hint">หรือ <b>แตะบนแผนที่</b> ตรงหมู่บ้านของคุณ แล้วกด “บันทึกเป็นบ้านของฉัน”</p>`;
+    }
+    homeHtml += `<p class="s-hint" id="homeMsg"></p>`;
+
+    // 3) รายอำเภอ
+    const ampRow = d => {
+      const ai = p.amphoe_list.indexOf(d.amphoe), t = trendOf(cNow.a[ai] || 0, c72.a[ai] || 0);
+      const ty = typ[ai] || Math.min(d.max_cls_now, 1), mx = d.max_cls_now;
+      return `<div class="s-amp" data-a="${d.amphoe}">${person(ty)}<div><div class="nm">อ.${d.amphoe}</div>
+        <div class="ds">น้ำท่วม ${raiTxt(d.km2_watch)} · ส่วนใหญ่${ty ? DEPTH_WORD[ty] : "ไม่ถึงข้อเท้า"}${mx > ty ? ` (บางจุด${DEPTH_WORD[mx]})` : ""}${d.dur_km2 > 0 ? `<br>ส่วนใหญ่น่าจะลดใน ${leftTxt(d.r_med)}` : ""}</div></div>
+        <div class="tr ${t.c}">${t.i} ${t.t.replace("น้ำจะ", "")}<br><span class="note">3 วันข้างหน้า</span></div></div>`;
+    };
+    const ampHtml = (hit.length ? hit.map(ampRow).join("") : `<p style="margin:0">ยังไม่มีอำเภอที่มีน้ำท่วมขัง</p>`) +
+      (calm.length ? `<p class="s-small" style="margin:8px 0 0">อำเภอที่ยังไม่มีน้ำท่วม: ${calm.map(d => d.amphoe).join(" · ")}</p>` : "");
+
+    // 4) แม่น้ำ
+    const rv = (S.upstream?.rivers || []).map(r => {
+      const pct = r.storage_pct ?? (r.qmax ? r.q_obs / r.qmax * 100 : null);
+      const col = r.overbank_now || pct > 100 ? "#dc2626" : pct >= 80 ? "#d97706" : "#16a34a";
+      const word = r.overbank_now || pct > 100 ? "ล้นตลิ่ง" : pct >= 80 ? "ใกล้เต็มตลิ่ง" : "ยังรับน้ำได้";
+      const rel = r.q_obs ? (r.recession?.trend_qph || 0) / r.q_obs : 0;
+      const tw = rel > 0.002 ? `<span class="up">▲ น้ำกำลังขึ้น</span>` : rel < -0.002 ? `<span class="down">▼ น้ำกำลังลด</span>` : `<span class="flat">■ ทรงตัว</span>`;
+      let more = "";
+      if (r.overbank_now) more = `ล้นตลิ่งมาแล้ว ${sinceTxt(r.overbank_since ? Math.round((S.frames.now - r.overbank_since) / 3600) : -1)}` + (r.h_below_bank > 0 ? ` · คาดว่าจะลดต่ำกว่าตลิ่งใน ${leftTxt(r.h_below_bank)}` : "");
+      else if (r.peak_t > S.frames.now + 3 * 3600 && r.peak_q > r.q_obs * 1.03) more = `คาดว่าน้ำจะขึ้นสูงสุดราว${dayTxt(r.peak_t)} ${r.qmax && r.peak_q > r.qmax ? `<b class="up">อาจล้นตลิ่ง</b>` : "แต่ยังไม่ถึงตลิ่ง"}`;
+      const w = Math.max(0, Math.min(pct || 0, 130)) / 130 * 100;
+      return `<div class="s-river"><div class="t"><span>${r.name}</span><span class="pill" style="background:${col}">${word}</span></div>
+        <div class="s-gauge"><i style="width:${w}%;background:${col}"></i><span class="bank" style="left:${100 / 1.3}%"></span></div>
+        <div class="m">น้ำในลำน้ำ ${nf(pct)}% ของตลิ่ง (ที่${r.gauge_name}) · ${tw}${more ? "<br>" + more : ""}</div></div>`;
+    }).join("");
+
+    // 5) ควรทำอย่างไร
+    const myC = S.home != null && S.home >= 0 ? Math.max(st.c[S.home], st.m72[S.home]) : 0;
+    const act = Math.max(lv, myC >= 2 ? 2 : myC);
+    const todo = act === 0 ? ["ติดตามข่าวจากอำเภอ ผู้ใหญ่บ้าน และหน้านี้ (ข้อมูลใหม่ทุกชั่วโมง)", "จดเบอร์โทรฉุกเฉินไว้ข้างล่าง", "ถ้าบ้านอยู่ที่ลุ่ม เตรียมที่วางของบนที่สูงไว้ก่อน"] :
+      ["ยกเอกสารสำคัญ ยา ของมีค่า และปลั๊กไฟ ขึ้นที่สูง", "ย้ายรถ สัตว์เลี้ยง และเครื่องมือเกษตรไปไว้ที่สูง", "เตรียมน้ำดื่ม อาหารแห้ง ไฟฉาย และแบตสำรอง ให้พอ 3 วัน",
+        "ถ้าน้ำเข้าบ้าน ให้ปิดสะพานไฟ อย่าแตะปลั๊กหรือสายไฟที่เปียก", "อย่าเดินหรือขับรถผ่านน้ำไหลแรง — น้ำแค่ระดับเข่าก็พัดคนล้มได้", "ดูแลเด็ก ผู้สูงอายุ และคนป่วย ระวังงูและสัตว์มีพิษ"];
+
+    box.innerHTML = hero +
+      `<div class="s-card"><h2><span class="num">1</span>บ้านของฉัน</h2>${homeHtml}</div>` +
+      `<div class="s-card"><h2><span class="num">2</span>น้ำท่วมรายอำเภอ</h2>${ampHtml}<p class="s-hint">แตะชื่ออำเภอเพื่อดูบนแผนที่</p></div>` +
+      `<div class="s-card"><h2><span class="num">3</span>แม่น้ำสายหลัก</h2>${rv || `<p class="s-small">ยังไม่มีข้อมูลแม่น้ำ</p>`}</div>` +
+      `<div class="s-card"><h2><span class="num">4</span>ฝน</h2><p style="margin:0">24 ชม. ที่ผ่านมา: <b>${rainWord(p24)}</b> (เฉลี่ย ${nf(p24)} มม.)<br>3 วันข้างหน้า: <b>${rainWord(f72)}</b> (เฉลี่ย ${nf(f72)} มม.)</p></div>` +
+      `<div class="s-card"><h2><span class="num">5</span>ควรทำอย่างไร</h2><ul class="s-todo">${todo.map(x => `<li>${x}</li>`).join("")}</ul>
+        <div class="s-tel"><a href="tel:1784"><b>1784</b>ปภ. สายด่วนนิรภัย</a><a href="tel:1669"><b>1669</b>เจ็บป่วยฉุกเฉิน</a><a href="tel:191"><b>191</b>เหตุด่วนเหตุร้าย</a><a href="tel:1460"><b>1460</b>กรมชลประทาน</a></div></div>` +
+      `<div class="s-card"><h2>ความลึกบนแผนที่ อ่านอย่างไร</h2><div class="s-depthkey">${[1, 2, 3, 4].map(c => `<div>${person(c)}${DEPTH_WORD[c].replace("ระดับ", "")}<br><span class="note">${DEPTH_CM[c]}</span></div>`).join("")}</div>
+        <p class="s-small" style="margin:8px 0 0">สีฟ้าอ่อน = น้ำตื้น · สีน้ำเงินเข้ม = น้ำลึก ; ใช้ปุ่มด้านล่างแผนที่เพื่อดู <b>พรุ่งนี้ / มะรืนนี้ / อีก 3 วัน</b></p></div>` +
+      `<div class="s-card"><h2>รู้ไหม? ท่าตะโกและรอบบึงบอระเพ็ด</h2><p style="margin:0">ภาพดาวเทียม 9 ปีที่ผ่านมา (2560–2568) พบว่าตำบล <b>ทับกฤช วังมหากร พนมเศษ พระนอน</b> น้ำท่วมซ้ำเกือบทุกปี และในปีน้ำมากขังนาน <b>2–3 เดือน</b> ส่วนใหญ่เป็นน้ำจากแม่น้ำน่าน–เจ้าพระยาที่ไหลย้อนเข้าบึง</p>
+        <div class="s-row" style="margin-top:8px"><button class="s-btn ghost" id="toTk">ดูแผนที่น้ำท่วมซ้ำ</button></div></div>` +
+      `<p class="s-small">ตัวเลขทั้งหมดเป็น <b>การประมาณจากคอมพิวเตอร์</b> โดยใช้ฝนจริง ระดับน้ำจริงจากสถานี และแผนที่ความสูงพื้นดิน ใช้ดูแนวโน้มเพื่อเตรียมตัว ควรฟังประกาศจากอำเภอ ผู้ใหญ่บ้าน และ ปภ. ประกอบเสมอ · <a href="#" id="toExpert">ดูข้อมูลละเอียด</a></p>`;
+
+    $$("#simple .s-amp").forEach(el => el.onclick = () => { zoomAmphoe(el.dataset.a); if (innerWidth <= 760) $("#panel").classList.add("collapsed"); setTimeout(() => map.invalidateSize(), 250); });
+    const on = (id, f) => { const e = $("#" + id); if (e) e.onclick = f; };
+    on("homeLoc", locateMe); on("homeClr", () => setHome(null));
+    on("homeGo", () => { map.setView([p.lat[S.home], p.lon[S.home]], 12); simplePopup(S.home, L.latLng(p.lat[S.home], p.lon[S.home])); });
+    on("toTk", () => { setView("expert"); tkShow("s1"); });
+    on("toExpert", e => { e.preventDefault(); setView("expert"); });
+  }
+
+  function simpleLegend() {
+    const pic = c => person(c, "pic");
+    const row = (c, col, t) => `<div class="row">${pic(c)}<span class="sw" style="background:${col}"></span>${t}</div>`;
+    if (S.mode === "dur") return "<b>น้ำจะขังนานแค่ไหน</b>" + ["ไม่ถึง 1 วัน", "ไม่ถึง 1 วัน", "1–3 วัน", "3–7 วัน", "นานกว่า 1 สัปดาห์"].map((t, k) => k === 0 ? "" : `<div class="row"><span class="sw" style="background:${DUR_COL[k + 1]}"></span>${t}</div>`).join("");
+    const t = S.frames.t[S.frame], dh = Math.round((t - S.frames.now) / 86400);
+    return `<b>ความลึกน้ำ${dh <= 0 ? "ตอนนี้" : dh === 1 ? "พรุ่งนี้" : dh === 2 ? "มะรืนนี้" : "อีก 3 วัน"}</b>` + [1, 2, 3, 4].map(c => row(c, CLS_COL[c], DEPTH_WORD[c].replace("ระดับ", ""))).join("");
+  }
+  function setSimpleTime(d) {
+    $$("#stime button").forEach(b => b.classList.toggle("active", b.dataset.d === String(d)));
+    if (d === "dur") { S.mode = "dur"; S.frame = S.frames.t.indexOf(S.frames.now); }
+    else { S.mode = "class"; S.frame = frameAtDay(+d); }
+    S.userMoved = +d > 0; $("#mode").value = S.mode; $("#slider").value = S.frame;
+    styleHex(); renderLegend(); renderTimelineLabel(); renderSimple();
+  }
+  $$("#stime button").forEach(b => b.onclick = () => setSimpleTime(b.dataset.d === "dur" ? "dur" : +b.dataset.d));
+
+  function setView(v, save = true) {
+    S.view = v; document.body.classList.toggle("view-simple", v === "simple"); map.closePopup();
+    $$(".viewsw button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
+    if (save) store.set("nsf_view", v);
+    if (S.stLayer) { if (v === "simple") { map.removeLayer(S.stLayer); if (S.rainLayer) map.removeLayer(S.rainLayer); } else S.stLayer.addTo(map); }
+    if (v === "simple" && S.frames) setSimpleTime(S.mode === "dur" ? "dur" : 0);
+    else if (S.frames) { styleHex(); renderLegend(); }
+    setTimeout(() => map.invalidateSize(), 50);
+  }
+  $$(".viewsw button").forEach(b => b.onclick = () => setView(b.dataset.view));
+  {
+    const q = new URLSearchParams(location.search).get("view");
+    S.view = q === "expert" || q === "simple" ? q : (store.get("nsf_view") || "simple");
+    const h = store.get("nsf_home"); S.home = h != null && h !== "" ? +h : null;
+    setView(S.view, false);
+  }
+
   // ---------------------------------------------------------------- UI wiring
   $("#mode").onchange = e => { S.mode = e.target.value; styleHex(); renderLegend(); };
   $("#slider").oninput = e => { S.frame = +e.target.value; S.userMoved = true; styleHex(); renderTimelineLabel(); };
@@ -624,7 +874,13 @@
   map.on("overlayadd overlayremove", renderLegend);
 
   (async () => {
-    try { await loadStatic(); await loadLive(true); }
+    try {
+      await loadStatic();
+      if (S.home != null && !(S.home >= 0 && S.home < S.params.n)) S.home = null;
+      await loadLive(true);
+      if (S.home != null) setHome(S.home);
+      if (S.view === "simple") setSimpleTime(0);
+    }
     catch (e) { $("#updated").textContent = "โหลดข้อมูลไม่สำเร็จ: " + e.message; console.error(e); }
     setInterval(() => loadLive(false).catch(console.warn), REFRESH_MS);
   })();
