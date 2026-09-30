@@ -131,6 +131,7 @@
     const frameCls = S.frames.c[S.frame];
     const isNow = S.frames.t[S.frame] === S.frames.now;
     const fo = i => st.f && isNow ? .35 + .5 * Math.min(st.f[i], 100) / 100 : .78;     // โปร่งตามสัดส่วนพื้นที่ท่วมใน hex
+    if (m === "hist") return () => ({ fillColor: "#000", fillOpacity: 0 });
     if (m === "class") return i => { const c = +frameCls[i]; return { fillColor: CLS_COL[c], fillOpacity: c ? fo(i) : 0 }; };
     if (m === "m72") return i => { const c = st.m72[i]; return { fillColor: CLS_COL[c], fillOpacity: c ? .78 : 0 }; };
     if (m === "u72") return i => { const d = (st.u72 || [])[i] || 0; const c = d >= 100 ? 4 : d >= 50 ? 3 : d >= 25 ? 2 : d >= 10 ? 1 : 0; return { fillColor: CLS_COL[c], fillOpacity: c ? .8 : 0 }; };
@@ -150,6 +151,7 @@
     const m = S.mode; let h = "";
     const row = (c, t) => `<div class="row"><span class="sw" style="background:${c}"></span>${t}</div>`;
     if (m === "class" || m === "m72" || m === "u72") { h = `<b>${m === "class" ? "ความลึกน้ำท่วมขัง (ประมาณ)" : m === "m72" ? "ความลึกสูงสุดใน 72 ชม." : "น้ำล้นตลิ่ง/ต้นน้ำ สูงสุด 72 ชม."}</b>` + CLS_LBL.slice(1).map((t, k) => row(CLS_COL[k + 1], t)).join(""); }
+    else if (m === "hist") { h = histLegend(); }
     else if (m === "dur") { h = "<b>ระยะเวลาท่วมรวม (ผ่านมา+คาดการณ์)</b>" + ["1–12 ชม.", "12–24 ชม.", "1–3 วัน", "3–7 วัน", "> 7 วัน"].map((t, k) => row(DUR_COL[k + 1], t)).join(""); }
     else { h = `<b>${{ p24: "ฝน 24 ชม.", p7d: "ฝน 7 วัน", f72: "ฝนพยากรณ์ 72 ชม." }[m]} (มม.)</b>` + ["1–10", "10–35", "35–90", "90–150", "> 150"].map((t, k) => row(RAIN_COL[k + 1], t)).join(""); }
     if (S.suscMeta && map.hasLayer(S.susc)) h += "<b style='margin-top:6px'>พื้นที่ลุ่มต่ำ (HAND)</b>" + S.suscMeta.classes.map((t, k) => row(S.suscMeta.colors[k], t)).join("");
@@ -255,7 +257,10 @@
         <span>Curve Number</span><span>${nf(p.cn[i])}</span>
         <span>ความลาดชัน</span><span>${nf(p.slope[i], 1)}%</span>
         <span>นา / เมือง</span><span>${nf(p.f_crop[i] * 100)}% / ${nf(p.f_built[i] * 100)}%</span>
-      </div></div>`;
+      </div>${S.phHex ? `<hr><div class="grid">
+        <span>ท่วม ≥ 30 วัน (S1 2560–68)</span><span>${S.phHex.yrs[i]} / ${S.phHex.n_years} ปี${S.phHex.last[i] ? ` · ล่าสุด ${S.phHex.last[i] + 543}` : ""}</span>
+        <span>พื้นที่ท่วม ≥ 30 วัน ≥ 3 ปี</span><span>${nf(S.phHex.rep_pct[i])}% ของ hex</span>
+        <span>ตำบล</span><span>${S.ph?.tambon?.[S.phHex.tam[i]]?.name || "–"}</span></div>` : ""}</div>`;
     L.popup({ maxWidth: 320 }).setLatLng(latlng).setContent(html).openOn(map);
   }
 
@@ -474,6 +479,141 @@
     if (!S.tkLayer && S.tkSel !== "off") tkShow(S.tkSel, false);
     map.fitBounds([[15.38, 100.12], [15.99, 100.70]]);
   }
+
+  // ---------------------------------------------------------------- เคยท่วมนานแค่ไหน — Sentinel-1 ทั้งจังหวัด 2560–2568 (pipeline/s1_province.py)
+  S.ph = null; S.phHex = null; S.phLayer = null; S.phTam = null;
+  const beY = y => +y + 543;
+  const HIST_WORD = y => y >= 6 ? "เกือบทุกปี" : y >= 3 ? "บ่อย" : y >= 1 ? "บางปี" : "";
+  const HIST_W = y => y >= 6 ? 3 : y >= 3 ? 2 : y >= 1 ? 1 : 0;
+  Promise.all([jOpt("data/static/s1_province.json", "s8"), jOpt("data/static/s1_province_hex.json", "s8")]).then(([a, b]) => {
+    S.ph = a; S.phHex = b && a && b.n === (S.params?.n ?? b.n) ? b : null;
+    renderHist(); if (S.meta && S.status) renderSimple(); if (S.mode === "hist") { histOverlay(true); renderLegend(); }
+  });
+  let tamP = null;
+  function loadTam() {
+    if (!tamP) tamP = jOpt("data/static/tambon_web.geojson", "s8").then(g => {
+      if (!g) return null;
+      S.phTam = L.geoJSON(g, { renderer, style: () => ({ color: "#7c2d12", weight: .8, opacity: .55, fill: true, fillOpacity: 0 }),
+        onEachFeature: (f, l) => {
+          l.bindTooltip(() => tamTip(f.properties.k), { sticky: true, direction: "top" });
+          l.on("click", e => { if (!S.params) return; const i = nearestHex(e.latlng.lat, e.latlng.lng); if (i < 0) return;
+            S.view === "simple" ? simplePopup(i, e.latlng) : hexPopup(i, e.latlng); });
+        } });
+      return S.phTam;
+    });
+    return tamP;
+  }
+  function tamTip(k) {
+    const t = S.ph?.tambon?.[k]; if (!t) return "";
+    const ys = Object.keys(t.ge30d_km2_by_year), yw = ys.reduce((a, y) => t.ge30d_km2_by_year[y] > t.ge30d_km2_by_year[a] ? y : a, ys[0]);
+    const v = t.ge30d_ge3y_km2, w = t.ge30d_km2_by_year[yw];
+    return `<b>ต.${t.name}</b> อ.${t.district}<br>` + (w * 625 < 50 ? "ภาพดาวเทียม 9 ปี ไม่ค่อยพบน้ำขังนานเกิน 1 เดือน" :
+      `น้ำขังนานเกิน 1 เดือน อย่างน้อย 3 ใน 9 ปี: <b>${raiTxt(v)}</b><br>ปีที่หนักสุด ${beY(yw)}: ${raiTxt(w)} (${nf(w / t.area_km2 * 100)}% ของตำบล)`);
+  }
+  function histOverlay(on, fit = false) {
+    if (on && S.ph) {
+      if (!S.phLayer) { S.phLayer = L.imageOverlay(`data/static/${S.ph.png}`, S.ph.bounds, { opacity: .9, interactive: false }); layerCtl.addOverlay(S.phLayer, "เคยท่วมนาน ≥ 30 วัน (Sentinel-1 2560–68)"); }
+      if (!map.hasLayer(S.phLayer)) S.phLayer.addTo(map);
+      loadTam().then(g => { if (g && S.mode === "hist" && !map.hasLayer(g)) g.addTo(map); });
+      if (fit) map.fitBounds(S.ph.bounds);
+    } else {
+      if (S.phLayer && map.hasLayer(S.phLayer)) map.removeLayer(S.phLayer);
+      if (S.phTam && map.hasLayer(S.phTam)) map.removeLayer(S.phTam);
+    }
+  }
+  function histLegend() {
+    const j = S.ph; if (!j) return "<b>กำลังโหลด…</b>";
+    return `<b>${S.view === "simple" ? "น้ำเคยขังนานเกิน 1 เดือน" : "ท่วม ≥ 30 วัน กี่ปีจาก 9 ปี"}</b>` +
+      j.png_legend.map(([c, t]) => `<div class="row"><span class="sw" style="background:${c}"></span>${t}</div>`).join("") +
+      `<div class="note" style="margin-top:3px">ภาพดาวเทียม ${beY(j.year_list?.[0] ?? 2017)}–${beY(Object.keys(j.years).slice(-1)[0])}</div>`;
+  }
+  function zoomTam(k) {
+    loadTam().then(g => { if (!g) return; g.eachLayer(l => { if (l.feature.properties.k === k) { map.fitBounds(l.getBounds(), { padding: [30, 30] }); setTimeout(() => l.openTooltip(l.getBounds().getCenter()), 400); } }); });
+  }
+  // ประวัติของจุด/บ้าน เป็นประโยคภาษาง่าย
+  function histLine(i) {
+    const h = S.phHex; if (!h || i == null || i < 0) return null;
+    const y = h.yrs[i], t = S.ph?.tambon?.[h.tam[i]], where = t ? `บริเวณนี้ (ต.${t.name})` : "บริเวณนี้";
+    if (!y) return { w: 0, html: `ในอดีต: ภาพดาวเทียม ${h.n_years} ปี (${beY(h.years[0])}–${beY(h.years.slice(-1)[0])}) <b>ไม่พบน้ำขังนานเกิน 1 เดือน</b> ${where}` };
+    return { w: HIST_W(y), html: `ในอดีต: ${where} เคยมีน้ำขังนานเกิน 1 เดือน <b>${y} ใน ${h.n_years} ปี</b> (${HIST_WORD(y)}) · ครั้งล่าสุดปี ${beY(h.last[i])}` };
+  }
+  function histSimpleHtml() {
+    const j = S.ph; if (!j) return "";
+    const ys = Object.keys(j.years), v30 = ys.map(y => j.years[y].prov_ge30d_km2), mx = Math.max(...v30);
+    const big = ys.filter(y => j.years[y].prov_ge30d_km2 >= 0.6 * mx), bv = big.map(y => j.years[y].prov_ge30d_km2);
+    const yrBars = ys.map(y => { const v = j.years[y].prov_ge30d_km2;
+      return `<div class="h-yr"><span>ปี ${beY(y)}</span><i class="${big.includes(y) ? "big" : ""}" style="width:${v / mx * 100}%"></i><em>${raiTxt(v)}</em></div>`; }).join("");
+    const ds = j.district.filter(d => d.ge30d_ge3y_km2 * 625 >= 300), dm = ds.length ? ds[0].ge30d_ge3y_km2 : 1;
+    const dBars = ds.map(d => `<div class="h-yr" data-a="${d.district}"><span>อ.${d.district}</span><i class="big" style="width:${d.ge30d_ge3y_km2 / dm * 100}%"></i><em>${raiTxt(d.ge30d_ge3y_km2)}</em></div>`).join("");
+    const top = j.tambon.map((t, k) => ({ ...t, k })).sort((a, b) => b.ge30d_ge3y_km2 - a.ge30d_ge3y_km2).slice(0, 10);
+    const tBtns = top.map(t => { const w = t.mean_years_ge30d >= 3 ? 3 : 2;
+      return `<button class="w${w}" data-k="${t.k}">ต.${t.name}<small>อ.${t.district} · ${raiTxt(t.ge30d_ge3y_km2)}</small></button>`; }).join("");
+    const quiet = j.district.filter(d => d.ge30d_ge3y_km2 * 625 < 300).map(d => d.district);
+    const hl = S.home != null && S.home >= 0 ? histLine(S.home) : null;
+    return `<div class="s-card"><h2>ในอดีต ที่ไหนน้ำขังนาน? <span class="note" style="font-weight:400">ภาพดาวเทียม 9 ปี</span></h2>
+      <p style="margin:0">ตั้งแต่ปี ${beY(ys[0])} ถึง ${beY(ys.slice(-1)[0])} มี <b>ปีน้ำมาก ${big.length} ปี</b> คือ ${big.map(beY).join(", ")} —
+        แต่ละปีมีที่ดินที่ <b>น้ำขังนานเกิน 1 เดือน</b> ราว ${raiTxt(Math.min(...bv))} ถึง ${raiTxt(Math.max(...bv))}</p>
+      ${hl ? `<div class="h-home w${hl.w}">🏠 บ้านของฉัน — ${hl.html}</div>` : ""}
+      <div class="h-sub">ที่ดินที่น้ำขังนานเกิน 1 เดือน ในแต่ละปี (ทั้งจังหวัด)</div><div class="h-bars">${yrBars}</div>
+      <div class="h-sub">อำเภอที่น้ำขังนานซ้ำ ๆ <span class="note" style="font-weight:400">(เกิน 1 เดือน อย่างน้อย 3 ใน 9 ปี)</span></div><div class="h-bars">${dBars}</div>
+      ${quiet.length ? `<p class="s-small" style="margin:4px 0 0">แทบไม่พบน้ำขังนาน: ${quiet.map(d => "อ." + d).join(" · ")}</p>` : ""}
+      <div class="h-sub">ตำบลที่น้ำขังนานบ่อยที่สุด</div><div class="h-tams">${tBtns}</div>
+      <div class="s-row" style="margin-top:10px"><button class="s-btn" id="histMap">🗺️ ดูบนแผนที่</button><button class="s-btn ghost" id="histMore">ตารางทุกตำบล</button></div>
+      <p class="s-hint">นี่คือ <b>สิ่งที่เคยเกิดขึ้น</b> ไม่ใช่การพยากรณ์ปีนี้ · น้ำที่ท่วมแล้วลดใน 1–2 สัปดาห์ (เช่น น้ำป่า) หรือน้ำใต้ต้นข้าวสูง ดาวเทียมอาจมองไม่เห็น ·
+        ผลวิเคราะห์ละเอียดของแอ่งท่าตะโกอยู่ที่ <a href="#" id="toTk">แท็บท่าตะโก</a></p></div>`;
+  }
+  function wireHistSimple() {
+    const on = (id, f) => { const e = $("#" + id); if (e) e.onclick = f; };
+    // มือถือ: ย่อแผงก่อน แล้วค่อยซูม (ขนาดแผนที่เปลี่ยน)
+    const go = fn => { setSimpleTime("hist"); if (innerWidth <= 760) $("#panel").classList.add("collapsed"); setTimeout(() => { map.invalidateSize(); fn(); }, 260); };
+    on("histMap", () => go(() => map.fitBounds(S.ph.bounds)));
+    on("histMore", () => { setView("expert"); $('.tabs button[data-tab="hist"]').click(); });
+    $$("#simple .h-yr[data-a]").forEach(el => el.onclick = () => go(() => zoomAmphoe(el.dataset.a)));
+    $$("#simple .h-tams button").forEach(el => el.onclick = () => go(() => zoomTam(+el.dataset.k)));
+  }
+  function histChartSvg(j) {
+    const ys = Object.keys(j.years), W = 340, H = 130, pad = 26, bw = (W - pad) / ys.length;
+    const mx = Math.max(...ys.map(y => j.years[y].prov_ge30d_km2), 1);
+    const bars = ys.map((y, k) => { const a = j.years[y].prov_ge30d_km2, b = j.years[y].prov_ge60d_km2, x = pad + k * bw;
+      const ha = a / mx * (H - 34), hb = b / mx * (H - 34);
+      return `<rect x="${x + 3}" y="${H - 16 - ha}" width="${bw - 6}" height="${ha}" fill="#fdba74"><title>ปี ${beY(y)}: ท่วม ≥ 30 วัน ${nf(a)} กม² · ≥ 60 วัน ${nf(b)} กม² · ${j.years[y].n_img} ภาพ</title></rect>
+        <rect x="${x + 3}" y="${H - 16 - hb}" width="${bw - 6}" height="${hb}" fill="#c2410c"/>
+        <text x="${x + bw / 2}" y="${H - 20 - ha}" font-size="9" text-anchor="middle" fill="currentColor" opacity=".7">${nf(a)}</text>
+        <text x="${x + bw / 2}" y="${H - 3}" font-size="9.5" text-anchor="middle" fill="currentColor" opacity=".7">${String(beY(y)).slice(2)}</text>`; }).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" style="color:var(--ink);width:100%"><text x="0" y="10" font-size="9" fill="currentColor" opacity=".6">กม²</text>
+      <line x1="${pad}" x2="${W}" y1="${H - 16}" y2="${H - 16}" stroke="currentColor" opacity=".25"/>${bars}</svg>
+      <div class="note"><span class="sw" style="background:#fdba74"></span>ท่วม ≥ 30 วัน <span class="sw" style="background:#c2410c;margin-left:8px"></span>≥ 60 วัน (ทั้งจังหวัด, ไม่รวมแหล่งน้ำถาวร)</div>`;
+  }
+  S.histAll = false;
+  function renderHist() {
+    const box = $("#histBox"); if (!box || !S.ph) return;
+    const j = S.ph, ys = Object.keys(j.years), nImg = ys.reduce((a, y) => a + j.years[y].n_img, 0);
+    const worst = r => { const o = r.ge60d_km2_by_year, y = Object.keys(o).reduce((a, b) => o[b] > o[a] ? b : a); return `${String(beY(y)).slice(2)}: ${nf(o[y], 1)}`; };
+    const tam = j.tambon.map((t, k) => ({ ...t, k })).filter(t => S.histAll || t.ge30d_ge3y_km2 >= 1).sort((a, b) => b.ge30d_ge3y_km2 - a.ge30d_ge3y_km2);
+    box.innerHTML = `<p class="note">น้ำท่วมจริงจากภาพเรดาร์ Sentinel-1 (ส.ค.–15 ธ.ค. ทุกปี, วงโคจร 62 ขาลง + 172 ขาขึ้น) ${nImg} การผ่าน ปี ${beY(ys[0])}–${beY(ys.slice(-1)[0])} ·
+        ระยะเวลาท่วมคิดราย pixel ~36 ม. · ขอบเขตตำบล OCHA COD-AB</p>
+      <div class="h-kpi"><div>ท่วม ≥ 30 วัน ≥ 3 ปี<b>${nf(j.prov_ge30d_ge3y_km2)} กม²</b></div><div>ท่วม ≥ 60 วัน ≥ 3 ปี<b>${nf(j.prov_ge60d_ge3y_km2)} กม²</b></div><div>แหล่งน้ำถาวร (ตัดออก)<b>${nf(j.perm_water_km2)} กม²</b></div></div>
+      <div class="seg"><button id="histOn" class="${S.mode === "hist" ? "active" : ""}">แสดงบนแผนที่</button><button id="histOff">ซ่อน</button></div>
+      <h3>พื้นที่ท่วมนานรายปี</h3>${histChartSvg(j)}
+      <h3>รายอำเภอ</h3>
+      <table class="tbl"><thead><tr><th>อำเภอ</th><th>≥30 วัน ≥3 ปี<br><small>กม²</small></th><th>≥60 วัน ≥3 ปี<br><small>กม²</small></th><th>ปีหนักสุด<br><small>≥60 วัน กม²</small></th></tr></thead>
+      <tbody>${j.district.map(d => `<tr data-a="${d.district}"><td>${d.district}</td><td>${nf(d.ge30d_ge3y_km2, 1)}</td><td>${nf(d.ge60d_ge3y_km2, 1)}</td><td>${worst(d)}</td></tr>`).join("")}</tbody></table>
+      <h3>รายตำบล ${S.histAll ? "(ทั้งหมด)" : "(ท่วม ≥ 30 วัน ≥ 3 ปี อย่างน้อย 1 กม²)"}</h3>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th><th>≥30 วัน ≥3 ปี<br><small>กม²</small></th><th>≥60 วัน ≥3 ปี<br><small>กม²</small></th><th>ปีที่ท่วม ≥30 วัน<br><small>เฉลี่ยในตำบล</small></th><th>ปีหนักสุด<br><small>≥60 วัน กม²</small></th></tr></thead>
+      <tbody>${tam.map(t => `<tr data-k="${t.k}"><td>${t.name}<div class="note">${t.district}</div></td><td>${nf(t.ge30d_ge3y_km2, 1)}</td><td>${nf(t.ge60d_ge3y_km2, 1)}</td><td>${nf(t.mean_years_ge30d, 1)}</td><td>${worst(t)}</td></tr>`).join("")}</tbody></table></div>
+      <p><button class="chip" id="histAll">${S.histAll ? "แสดงเฉพาะตำบลที่ท่วมนาน" : `แสดงทั้ง ${j.tambon.length} ตำบล`}</button></p>
+      <p class="note">${j.season} · ${j.method} · ข้อจำกัด: น้ำหลากที่ลดใน 1–2 สัปดาห์ (ที่ดอนตะวันตก/ตะวันออก) ภาพห่าง 6–12 วันจับไม่ทัน ; ป่า/ที่ลาดชัน/ใต้ต้นข้าวสูงตรวจน้ำไม่ได้ ;
+        นาที่ขังน้ำตลอดฤดูแล้งถูกนับเป็นแหล่งน้ำถาวร ; ปี 2568 มี Sentinel-1C เพิ่ม (ภาพถี่ขึ้น)</p>`;
+    $("#histOn").onclick = () => setMapMode("hist", true);
+    $("#histOff").onclick = () => setMapMode("class");
+    $("#histAll").onclick = () => { S.histAll = !S.histAll; renderHist(); };
+    $$("#histBox tr[data-a]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomAmphoe(r.dataset.a); });
+    $$("#histBox tr[data-k]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomTam(+r.dataset.k); });
+  }
+  function setMapMode(m, fit = false) {
+    S.mode = m; $("#mode").value = m; histOverlay(m === "hist", fit);
+    styleHex(); renderLegend(); if (S.ph) { const b = $("#histOn"); if (b) { b.classList.toggle("active", m === "hist"); } }
+  }
   // ---------------------------------------------------------------- สถานการณ์สมมติ (ไม่ขึ้นกับฝนวันนี้): ฝน × ระดับน้ำแม่น้ำ
   S.scn = null; S.scnLayer = null;
   jOpt("data/static/hotspots/thatako_scenarios.json", "s5").then(j => { S.scn = j; tkRefresh(); });
@@ -597,6 +737,7 @@
         <li>ฝนย้อนหลังเป็นค่าจากแบบจำลองอากาศ ปรับแก้เฉพาะ 24 ชม. ล่าสุด</li></ul>
       <h4>แหล่งข้อมูล</h4><ul>
         <li>Open-Meteo (CC BY 4.0) · ThaiWater / สสน. · GISTDA · Windy.com</li>
+        <li>Copernicus Sentinel-1 RTC (Microsoft Planetary Computer) — น้ำท่วมจริงย้อนหลัง 2560–2568 · ขอบเขตตำบล OCHA COD-AB (CC BY-IGO)</li>
         <li>FABDEM V1-2 (Hawker et al. 2022, CC BY-NC-SA 4.0) · Copernicus DEM GLO-30 (© DLR/Airbus, ESA) · ESA WorldCover 2021 (CC BY 4.0) · OpenStreetMap (ODbL) · geoBoundaries</li></ul>`;
   }
 
@@ -678,6 +819,7 @@
     if (c > 0 && isNow && st.m72[i] > c) lines.push(`<b class="up">3 วันข้างหน้าอาจสูงขึ้นถึง${DEPTH_WORD[st.m72[i]]}</b>`);
     if (p.f_low[i] > 0.5 && c === 0) lines.push("เป็นที่ลุ่มต่ำ น้ำท่วมง่ายกว่าบริเวณรอบ ๆ");
     lines.push(`ฝนตกแล้ว 24 ชม.: ${nf(st.p24[i])} มม. (${rainWord(st.p24[i])}) · 3 วันข้างหน้า: ${nf(st.f72[i])} มม. (${rainWord(st.f72[i])})`);
+    const hl = histLine(i); if (hl) lines.push(hl.html);
     const sp = isNow ? "" : " ";
     const head = c > 0 ? `${when}${sp}น้ำท่วม${DEPTH_WORD[c]}` : `${when}${sp}ไม่มีน้ำท่วมขัง`;
     const sub = c > 0 ? `ประมาณ ${DEPTH_CM[c]}${isNow && st.d[i] > 0 ? ` (เฉลี่ย ${nf(st.d[i])} ซม.)` : ""}` : "";
@@ -800,21 +942,22 @@
       `<div class="s-card"><h2><span class="num">4</span>ฝน</h2><p style="margin:0">24 ชม. ที่ผ่านมา: <b>${rainWord(p24)}</b> (เฉลี่ย ${nf(p24)} มม.)<br>3 วันข้างหน้า: <b>${rainWord(f72)}</b> (เฉลี่ย ${nf(f72)} มม.)</p></div>` +
       `<div class="s-card"><h2><span class="num">5</span>ควรทำอย่างไร</h2><ul class="s-todo">${todo.map(x => `<li>${x}</li>`).join("")}</ul>
         <div class="s-tel"><a href="tel:1784"><b>1784</b>ปภ. สายด่วนนิรภัย</a><a href="tel:1669"><b>1669</b>เจ็บป่วยฉุกเฉิน</a><a href="tel:191"><b>191</b>เหตุด่วนเหตุร้าย</a><a href="tel:1460"><b>1460</b>กรมชลประทาน</a></div></div>` +
+      histSimpleHtml() +
       `<div class="s-card"><h2>ความลึกบนแผนที่ อ่านอย่างไร</h2><div class="s-depthkey">${[1, 2, 3, 4].map(c => `<div>${person(c)}${DEPTH_WORD[c].replace("ระดับ", "")}<br><span class="note">${DEPTH_CM[c]}</span></div>`).join("")}</div>
         <p class="s-small" style="margin:8px 0 0">สีฟ้าอ่อน = น้ำตื้น · สีน้ำเงินเข้ม = น้ำลึก ; ใช้ปุ่มด้านล่างแผนที่เพื่อดู <b>พรุ่งนี้ / มะรืนนี้ / อีก 3 วัน</b></p></div>` +
-      `<div class="s-card"><h2>รู้ไหม? ท่าตะโกและรอบบึงบอระเพ็ด</h2><p style="margin:0">ภาพดาวเทียม 9 ปีที่ผ่านมา (2560–2568) พบว่าตำบล <b>ทับกฤช วังมหากร พนมเศษ พระนอน</b> น้ำท่วมซ้ำเกือบทุกปี และในปีน้ำมากขังนาน <b>2–3 เดือน</b> ส่วนใหญ่เป็นน้ำจากแม่น้ำน่าน–เจ้าพระยาที่ไหลย้อนเข้าบึง</p>
-        <div class="s-row" style="margin-top:8px"><button class="s-btn ghost" id="toTk">ดูแผนที่น้ำท่วมซ้ำ</button></div></div>` +
       `<p class="s-small">ตัวเลขทั้งหมดเป็น <b>การประมาณจากคอมพิวเตอร์</b> โดยใช้ฝนจริง ระดับน้ำจริงจากสถานี และแผนที่ความสูงพื้นดิน ใช้ดูแนวโน้มเพื่อเตรียมตัว ควรฟังประกาศจากอำเภอ ผู้ใหญ่บ้าน และ ปภ. ประกอบเสมอ · <a href="#" id="toExpert">ดูข้อมูลละเอียด</a></p>`;
 
     $$("#simple .s-amp").forEach(el => el.onclick = () => { zoomAmphoe(el.dataset.a); if (innerWidth <= 760) $("#panel").classList.add("collapsed"); setTimeout(() => map.invalidateSize(), 250); });
     const on = (id, f) => { const e = $("#" + id); if (e) e.onclick = f; };
     on("homeLoc", locateMe); on("homeClr", () => setHome(null));
     on("homeGo", () => { map.setView([p.lat[S.home], p.lon[S.home]], 12); simplePopup(S.home, L.latLng(p.lat[S.home], p.lon[S.home])); });
-    on("toTk", () => { setView("expert"); tkShow("s1"); });
+    on("toTk", e => { e?.preventDefault?.(); setView("expert"); tkShow("s1"); });
+    wireHistSimple();
     on("toExpert", e => { e.preventDefault(); setView("expert"); });
   }
 
   function simpleLegend() {
+    if (S.mode === "hist") return histLegend();
     const pic = c => person(c, "pic");
     const row = (c, col, t) => `<div class="row">${pic(c)}<span class="sw" style="background:${col}"></span>${t}</div>`;
     if (S.mode === "dur") return "<b>น้ำจะขังนานแค่ไหน</b>" + ["ไม่ถึง 1 วัน", "ไม่ถึง 1 วัน", "1–3 วัน", "3–7 วัน", "นานกว่า 1 สัปดาห์"].map((t, k) => k === 0 ? "" : `<div class="row"><span class="sw" style="background:${DUR_COL[k + 1]}"></span>${t}</div>`).join("");
@@ -823,19 +966,21 @@
   }
   function setSimpleTime(d) {
     $$("#stime button").forEach(b => b.classList.toggle("active", b.dataset.d === String(d)));
-    if (d === "dur") { S.mode = "dur"; S.frame = S.frames.t.indexOf(S.frames.now); }
+    histOverlay(d === "hist");
+    if (d === "hist") { S.mode = "hist"; S.frame = S.frames.t.indexOf(S.frames.now); }
+    else if (d === "dur") { S.mode = "dur"; S.frame = S.frames.t.indexOf(S.frames.now); }
     else { S.mode = "class"; S.frame = frameAtDay(+d); }
     S.userMoved = +d > 0; $("#mode").value = S.mode; $("#slider").value = S.frame;
     styleHex(); renderLegend(); renderTimelineLabel(); renderSimple();
   }
-  $$("#stime button").forEach(b => b.onclick = () => setSimpleTime(b.dataset.d === "dur" ? "dur" : +b.dataset.d));
+  $$("#stime button").forEach(b => b.onclick = () => setSimpleTime(b.dataset.d === "dur" || b.dataset.d === "hist" ? b.dataset.d : +b.dataset.d));
 
   function setView(v, save = true) {
     S.view = v; document.body.classList.toggle("view-simple", v === "simple"); map.closePopup();
     $$(".viewsw button").forEach(b => b.classList.toggle("active", b.dataset.view === v));
     if (save) store.set("nsf_view", v);
     if (S.stLayer) { if (v === "simple") { map.removeLayer(S.stLayer); if (S.rainLayer) map.removeLayer(S.rainLayer); } else S.stLayer.addTo(map); }
-    if (v === "simple" && S.frames) setSimpleTime(S.mode === "dur" ? "dur" : 0);
+    if (v === "simple" && S.frames) setSimpleTime(S.mode === "dur" || S.mode === "hist" ? S.mode : 0);
     else if (S.frames) { styleHex(); renderLegend(); }
     setTimeout(() => map.invalidateSize(), 50);
   }
@@ -848,7 +993,7 @@
   }
 
   // ---------------------------------------------------------------- UI wiring
-  $("#mode").onchange = e => { S.mode = e.target.value; styleHex(); renderLegend(); };
+  $("#mode").onchange = e => setMapMode(e.target.value);
   $("#slider").oninput = e => { S.frame = +e.target.value; S.userMoved = true; styleHex(); renderTimelineLabel(); };
   $("#nowBtn").onclick = () => { S.frame = S.frames.t.indexOf(S.frames.now); $("#slider").value = S.frame; S.userMoved = false; styleHex(); renderTimelineLabel(); };
   $("#play").onclick = () => {
@@ -863,6 +1008,7 @@
     if (b.dataset.tab === "upstream") showUpstreamMap();
     if (b.dataset.tab === "hot") showHotMap();
     if (b.dataset.tab === "thatako") showThatako();
+    if (b.dataset.tab === "hist") setMapMode("hist", true);
   });
   function setWindy(ov) {
     S.windyOv = ov;
@@ -872,6 +1018,7 @@
   $$("#windySeg button").forEach(b => b.onclick = () => setWindy(b.dataset.ov));
   $("#panelToggle").onclick = () => { $("#panel").classList.toggle("collapsed"); setTimeout(() => map.invalidateSize(), 250); };
   map.on("overlayadd overlayremove", renderLegend);
+  map.on("popupopen", () => document.body.classList.add("popup-open")).on("popupclose", () => document.body.classList.remove("popup-open"));
 
   (async () => {
     try {

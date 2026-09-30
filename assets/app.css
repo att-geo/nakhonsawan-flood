@@ -178,3 +178,22 @@ body.view-simple .legend{bottom:76px}
   .viewsw{margin-top:6px}
   .brand .sub{display:none}.brand{padding:10px 12px 8px}
 }
+
+/* เคยท่วมนาน (Sentinel-1 2560–2568) */
+.h-bars{margin:6px 0 2px}
+.h-yr{display:grid;grid-template-columns:78px 1fr 86px;gap:8px;align-items:center;font-size:13px;padding:2px 0}
+.h-yr[data-a],.h-yr[data-k]{cursor:pointer}.h-yr[data-a]:hover,.h-yr[data-k]:hover{background:var(--chip)}
+.h-yr i{display:block;height:12px;border-radius:99px;background:#fdba74;min-width:2px}
+.h-yr i.big{background:#c2410c}
+.h-yr em{font-style:normal;color:var(--muted);text-align:right;white-space:nowrap}
+.h-sub{font-size:13.5px;font-weight:600;margin:12px 0 2px}
+.h-tams{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.h-tams button{border:1px solid var(--line);background:var(--panel);color:var(--ink);font:inherit;font-size:13px;padding:5px 9px;border-radius:99px;cursor:pointer;text-align:left;line-height:1.25}
+.h-tams button small{display:block;color:var(--muted);font-size:11px}
+.h-tams button.w3{border-color:#991b1b}.h-tams button.w2{border-color:#f97316}
+.h-home{border-left:4px solid #f97316;background:rgba(249,115,22,.08);padding:6px 9px;border-radius:0 8px 8px 0;margin:8px 0 2px;font-size:14px}
+.h-home.w3{border-color:#991b1b;background:rgba(153,27,27,.08)}.h-home.w0{border-color:var(--line);background:none}
+.h-kpi{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin:6px 0 10px}
+.h-kpi div{background:var(--chip);border-radius:10px;padding:7px 8px;font-size:12px;line-height:1.3}.h-kpi b{display:block;font-size:17px}
+@media (max-width:760px){.h-yr{grid-template-columns:64px 1fr 76px;font-size:12.5px}}
+@media (max-width:760px){body.popup-open .legend{display:none}}

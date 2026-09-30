@@ -42,6 +42,7 @@
       <button role="tab" data-tab="stations">ระดับน้ำ</button>
       <button role="tab" data-tab="rain">ฝน</button>
       <button role="tab" data-tab="hot">2D จุดวิกฤต</button>
+      <button role="tab" data-tab="hist">ท่วมซ้ำ</button>
       <button role="tab" data-tab="thatako">ท่าตะโก</button>
       <button role="tab" data-tab="windy">Windy</button>
       <button role="tab" data-tab="about">วิธีการ</button>
@@ -87,6 +88,9 @@
         <h3>การสอบเทียบแบบจำลอง</h3>
         <div id="calibInfo" class="note"></div>
       </section>
+      <section data-pane="hist" class="pane">
+        <div id="histBox"><p class="note">กำลังโหลด…</p></div>
+      </section>
       <section data-pane="thatako" class="pane">
         <p class="note">แอ่งท่าตะโก + ต.พระนอน/ทับกฤช (1,072 กม², พื้นที่รับน้ำ 3,741 กม²) — ท่วมซ้ำซากและขังนาน 2–3 เดือนรอบบึงบอระเพ็ด ; ผลจากแบบจำลอง 2D เทียบภาพเรดาร์ Sentinel-1</p>
         <h3>ชั้นแผนที่</h3>
@@ -125,12 +129,13 @@
           <option value="p7d">ฝน 7 วันที่ผ่านมา</option>
           <option value="f72">ฝนพยากรณ์ 72 ชม.</option>
           <option value="u72">น้ำล้นตลิ่ง/ต้นน้ำ สูงสุด 72 ชม.</option>
+          <option value="hist">เคยท่วมนาน ≥ 30 วัน (ดาวเทียม 2560–68)</option>
         </select>
       </label>
     </div>
     <div class="legend" id="legend"></div>
     <div class="stime" id="stime" role="group" aria-label="เลือกช่วงเวลา">
-      <button data-d="0" class="active">ตอนนี้</button><button data-d="1">พรุ่งนี้</button><button data-d="2">มะรืนนี้</button><button data-d="3">อีก 3 วัน</button><button data-d="dur">ขังนานแค่ไหน</button>
+      <button data-d="0" class="active">ตอนนี้</button><button data-d="1">พรุ่งนี้</button><button data-d="2">มะรืนนี้</button><button data-d="3">อีก 3 วัน</button><button data-d="dur">ขังนานแค่ไหน</button><button data-d="hist">เคยท่วมนาน</button>
     </div>
     <div class="timeline" id="timeline">
       <button id="play" class="icon-btn" aria-label="เล่น">▶</button>

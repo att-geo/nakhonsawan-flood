@@ -53,7 +53,8 @@ flowchart LR
   สถานการณ์จังหวัดเป็นสีสัญญาณ (ปกติ / เฝ้าระวัง / เตือนภัย / อันตราย), พื้นที่เป็น **ไร่**, ความลึกเทียบกับร่างกาย (**ข้อเท้า / เข่า / เอว / สูงกว่าเอว**) พร้อมรูปคน, เวลาเป็น **วัน** ;
   **บ้านของฉัน** (ใช้ตำแหน่ง GPS หรือแตะแผนที่แล้วบันทึก) บอกลึกแค่ไหน ท่วมมากี่วัน อีกกี่วันลด สาเหตุ ; รายอำเภอ (ความลึกส่วนใหญ่ + บางจุด, แนวโน้ม 3 วัน) ;
   แม่น้ำสายหลัก (ยังรับน้ำได้ / ใกล้เต็มตลิ่ง / ล้นตลิ่ง) ; ฝน ; สิ่งที่ควรทำ + เบอร์ฉุกเฉิน (1784, 1669, 191, 1460) ;
-  ปุ่มใต้แผนที่ **ตอนนี้ / พรุ่งนี้ / มะรืนนี้ / อีก 3 วัน / ขังนานแค่ไหน**
+  ปุ่มใต้แผนที่ **ตอนนี้ / พรุ่งนี้ / มะรืนนี้ / อีก 3 วัน / ขังนานแค่ไหน / เคยท่วมนาน** ;
+  **ในอดีต ที่ไหนน้ำขังนาน?** (ภาพดาวเทียม 9 ปี): ปีน้ำมาก, ที่ดินที่น้ำขังนานเกิน 1 เดือนรายปีและรายอำเภอเป็น **ไร่**, ตำบลที่ขังนานบ่อยที่สุด (แตะแล้วซูม), และบอกใน “บ้านของฉัน”/จุดที่แตะว่า **เคยน้ำขังเกิน 1 เดือนกี่ปีใน 9 ปี (บางปี / บ่อย / เกือบทุกปี)**
 - **ดูแบบละเอียด (ผู้เชี่ยวชาญ)** — แท็บและตัวเลขเดิมทั้งหมดด้านล่าง
 
 - แผนที่ hex 1 กม² แสดงระดับน้ำท่วมขัง 5 ชั้น พร้อม **แถบเวลา −7 วัน ถึง +72 ชม.** (กดเล่นเป็นแอนิเมชันได้)
@@ -63,6 +64,7 @@ flowchart LR
 - คลิก hex: ความลึก, สาเหตุ (ฝน/ล้นตลิ่ง), **ท่วมมาแล้วกี่ชั่วโมง, คาดว่าจะลดลงเมื่อไร**, ฝนสะสม, ค่า HAND/CN จาก ArcGIS Pro
 - **แท็บต้นน้ำ**: น้ำจากกำแพงเพชร พิจิตร พิษณุโลก เพชรบูรณ์ — ปริมาตรที่จะไหลเข้า นว. ใน 72 ชม. รายจังหวัด, hydrograph + พยากรณ์ของปิง/น่าน-ยม/แม่วงก์/เจ้าพระยา เทียบความจุลำน้ำ, พื้นที่ที่ราบลุ่มน้ำล้นตลิ่ง, แผนที่ลุ่มน้ำและจุดน้ำเข้า
 - **แท็บ 2D จุดวิกฤต**: แผนที่ความลึกความละเอียด 120 ม. (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) ตอนนี้/+24/+48/+72 ชม./สูงสุด, ชั้นคลอง คันกั้นน้ำ สถานีสูบ ประตูระบายน้ำ และผลการสอบเทียบ
+- **แท็บท่วมซ้ำ (ทั้งจังหวัด)**: น้ำท่วมจริงจาก Sentinel-1 ปี 2560–2568 วงโคจร 62 + 172 — แผนที่จำนวนปีที่ท่วม ≥ 30 วัน, กราฟรายปี, ตารางรายอำเภอ/130 ตำบล (คลิกแล้วซูม), ข้อมูลใน popup ราย hex
 - **แท็บท่าตะโก**: ชั้นแผนที่ขอบเขตตำบล + น้ำท่วมซ้ำ Sentinel-1 / เหตุการณ์ 64·65·68 / สถานการณ์ E (สลับได้), ระยะเวลาท่วมขังรายตำบล, น้ำท่วมจริงจาก Sentinel-1 2560–2568, **จำลองเหตุการณ์ปี 2564/2565/2568 เทียบดาวเทียม (แผนที่ตรง/ขาด/เกิน + กราฟรายวัน + ตารางรายตำบล)** และสถานการณ์สมมติ
 - สรุปรายอำเภอ, สถานีระดับน้ำ (สถานการณ์ตามตลิ่ง), สถานีวัดฝน, กราฟฝนรายชั่วโมง, แท็บ Windy (ฝน/ฝนสะสม/เรดาร์/เมฆ)
 - ชั้นพื้นที่ลุ่มต่ำ (HAND) จาก ArcGIS Pro, ชั้นน้ำท่วมจากดาวเทียม GISTDA (ถ้าเปิดใช้) และ **น้ำท่วมจาก Sentinel-1 ที่แปลเอง (ไม่ต้องใช้ key)**
@@ -112,7 +114,8 @@ Catalog → Toolboxes → Add Toolbox → `arcgis/NakhonSawanFlood.pyt`
 | 3) Publish to GitHub | commit + push |
 
 Command line: `python pipeline/run_update.py --site .` → `python pipeline/run_hotspots.py --site . [--long]` → `python pipeline/calibrate.py --site .`
-น้ำท่วมในอดีตจาก Sentinel-1 (2560–2568, รันใน Python ของ ArcGIS Pro): `python pipeline/s1_history.py --out ../s1_hist --site . --download`
+น้ำท่วมในอดีตจาก Sentinel-1 **ทั้งจังหวัด** (วงโคจร 62 + 172, ~20 นาทีโหลด + ~25 นาทีวิเคราะห์, ต้องมี rasterio/scipy/shapely): `python pipeline/s1_province.py --out ../s1_prov --site . --download` → `python pipeline/s1_province_web.py --out ../s1_prov --site .` (รายละเอียด `docs/ARCHITECTURE.md` 4h)
+น้ำท่วมในอดีตจาก Sentinel-1 แอ่งท่าตะโก (2560–2568, รันใน Python ของ ArcGIS Pro): `python pipeline/s1_history.py --out ../s1_hist --site . --download`
 จำลองเหตุการณ์จริงย้อนหลัง (ปี 2564/2565/2568, ~30 นาที/ปี) + เทียบดาวเทียม: `python pipeline/event_2d.py --site . --year 2025 --bank-off -1 --in-cap 400 --hold-level 24.5 --loss 0.08 --n-mult 2 --s1-dir ../s1_hist` → `python pipeline/event_compare.py --site . --s1 ../s1_hist --run hecras/thatako_ev/runs/2025.npz`
 สรุปผลเหตุการณ์จริงขึ้นเว็บ (แท็บ 2D → แอ่งท่าตะโก): `python pipeline/events_web.py --site . --s1 ../s1_hist` → `data/static/hotspots/thatako_events.json`, `ev/thatako_ev_<ปี>.png`
 สถานการณ์สมมติแอ่งท่าตะโก (ฝน × ระดับแม่น้ำ, ~25 นาที/สถานการณ์): `python pipeline/scenario_2d.py --site . --rain 250 --rain-days 5 --tag _r250` (รายละเอียด `docs/ARCHITECTURE.md` 4g)
@@ -127,6 +130,7 @@ Command line: `python pipeline/run_update.py --site .` → `python pipeline/run_
 index.html, assets/app.js, assets/app.css   หน้าเว็บ
 data/static/   hex.geojson, params.json, districts.geojson, province.geojson,
                susceptibility.png/.json, stations_ref.json,
+               province_tambon.geojson, tambon_web.geojson, s1_province.json/_hex.json/_freq.png  ← น้ำท่วมจริง S1 ทั้งจังหวัด,
                upstream_zones.json, upstream_entries.json, upstream_basins.geojson   ← จาก ArcGIS Pro
 data/live/     meta, status, frames, stations, districts, series, upstream,
                gauges_hist, rain_cache (.json)                             ← จาก pipeline ทุกชั่วโมง
@@ -144,7 +148,7 @@ docs/          ARCHITECTURE.md
 
 ## แหล่งข้อมูลและสัญญาอนุญาต
 
-Open-Meteo (CC BY 4.0, non-commercial ฟรี) · ThaiWater / สถาบันสารสนเทศทรัพยากรน้ำ (สสน.) · GISTDA · Copernicus Sentinel-1 (ผ่าน Microsoft Planetary Computer) · Windy.com (embed) ·
+Open-Meteo (CC BY 4.0, non-commercial ฟรี) · ThaiWater / สถาบันสารสนเทศทรัพยากรน้ำ (สสน.) · GISTDA · Copernicus Sentinel-1 (ผ่าน Microsoft Planetary Computer) · OCHA COD-AB ขอบเขตตำบล (CC BY-IGO) · Windy.com (embed) ·
 FABDEM V1-2 (Hawker et al. 2022, **CC BY-NC-SA 4.0 — ใช้เชิงพาณิชย์ไม่ได้**; ถ้าจะใช้เชิงพาณิชย์ให้กลับไปใช้ Copernicus DEM) · OpenStreetMap (ODbL) ·
 Copernicus DEM GLO-30 © DLR e.V. 2010–2014 and © Airbus Defence and Space GmbH 2014–2018, provided under COPERNICUS by the European Union and ESA ·
 ESA WorldCover 2021 (CC BY 4.0) · geoBoundaries (CC BY 4.0) · แผนที่ฐาน © Esri (World Light Gray Canvas, World Imagery), © OpenStreetMap contributors
