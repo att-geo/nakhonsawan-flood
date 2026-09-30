@@ -138,5 +138,156 @@
     "lon": 100.26481
    }
   ]
+ },
+ "thatako": {
+  "id": "thatako",
+  "name": "ท่าตะโก + พระนอน/ทับกฤช (แอ่งรับน้ำ)",
+  "dx": 180.0,
+  "cell_webm": 186.9390996380875,
+  "shape": [
+   408,
+   452
+  ],
+  "bounds": [
+   [
+    15.33,
+    100.1
+   ],
+   [
+    15.989718981014665,
+    100.85904473182805
+   ]
+  ],
+  "extent_webm": [
+   11143081.028406683,
+   1727261.0446195118,
+   11227577.5014431,
+   1803532.1972718516
+  ],
+  "stations": [
+   {
+    "code": "N.67",
+    "name": "วัดเกยไชยเหนือ",
+    "z_ref": 19.0,
+    "lat": 15.86918,
+    "lon": 100.264732
+   },
+   {
+    "code": "NAN008",
+    "name": "ชุมแสง",
+    "z_ref": 19.0,
+    "lat": 15.86923,
+    "lon": 100.26481
+   },
+   {
+    "code": "C.2",
+    "name": "ค่ายจิรประวัติ",
+    "z_ref": 16.5,
+    "lat": 15.67059,
+    "lon": 100.10936
+   },
+   {
+    "code": "CPY001",
+    "name": "สะพานเดชาติวงศ์",
+    "z_ref": 16.5,
+    "lat": 15.68849,
+    "lon": 100.12381
+   }
+  ],
+  "aoi": [
+   {
+    "code": "TH600112",
+    "name": "พระนอน",
+    "district": "เมืองนครสวรรค์",
+    "area_km2": 122.6,
+    "in_existing": false
+   },
+   {
+    "code": "TH600302",
+    "name": "ทับกฤช",
+    "district": "ชุมแสง",
+    "area_km2": 112.6,
+    "in_existing": false
+   },
+   {
+    "code": "TH600310",
+    "name": "ไผ่สิงห์",
+    "district": "ชุมแสง",
+    "area_km2": 55.4,
+    "in_existing": true
+   },
+   {
+    "code": "TH600801",
+    "name": "ท่าตะโก",
+    "district": "ท่าตะโก",
+    "area_km2": 46.4,
+    "in_existing": false
+   },
+   {
+    "code": "TH600802",
+    "name": "พนมรอก",
+    "district": "ท่าตะโก",
+    "area_km2": 99.7,
+    "in_existing": false
+   },
+   {
+    "code": "TH600803",
+    "name": "หัวถนน",
+    "district": "ท่าตะโก",
+    "area_km2": 100.9,
+    "in_existing": false
+   },
+   {
+    "code": "TH600804",
+    "name": "สายลำโพง",
+    "district": "ท่าตะโก",
+    "area_km2": 89.9,
+    "in_existing": false
+   },
+   {
+    "code": "TH600805",
+    "name": "วังมหากร",
+    "district": "ท่าตะโก",
+    "area_km2": 101.5,
+    "in_existing": false
+   },
+   {
+    "code": "TH600806",
+    "name": "ดอนคา",
+    "district": "ท่าตะโก",
+    "area_km2": 111.3,
+    "in_existing": false
+   },
+   {
+    "code": "TH600807",
+    "name": "ทำนบ",
+    "district": "ท่าตะโก",
+    "area_km2": 60.6,
+    "in_existing": false
+   },
+   {
+    "code": "TH600808",
+    "name": "วังใหญ่",
+    "district": "ท่าตะโก",
+    "area_km2": 58.7,
+    "in_existing": false
+   },
+   {
+    "code": "TH600809",
+    "name": "พนมเศษ",
+    "district": "ท่าตะโก",
+    "area_km2": 62.3,
+    "in_existing": false
+   },
+   {
+    "code": "TH600810",
+    "name": "หนองหลวง",
+    "district": "ท่าตะโก",
+    "area_km2": 105.8,
+    "in_existing": false
+   }
+  ],
+  "long_h": 336,
+  "contrib": "thatako_contrib.geojson"
  }
 }

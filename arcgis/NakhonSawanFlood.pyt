@@ -128,7 +128,7 @@ class BuildNetwork:
 class BuildHotspots:
     def __init__(self):
         self.label = "1d) Build 2D Hotspots + HEC-RAS export"
-        self.description = "โดเมนแบบจำลอง 2D (ลาดยาว, เมืองนครสวรรค์, ชุมแสง) และชุดข้อมูลสำหรับ HEC-RAS 2D"
+        self.description = "โดเมนแบบจำลอง 2D (ลาดยาว, เมืองนครสวรรค์, ชุมแสง, แอ่งท่าตะโก) และชุดข้อมูลสำหรับ HEC-RAS 2D"
         self.canRunInBackground = False
 
     def getParameterInfo(self):
@@ -144,7 +144,7 @@ class BuildHotspots:
 class RunHotspots:
     def __init__(self):
         self.label = "2b) Run 2D Hotspots"
-        self.description = "รันแบบจำลอง 2D rain-on-grid (ต้องรัน tool 2 ก่อน) + เขียน rain.csv/stage_*.csv สำหรับ HEC-RAS"
+        self.description = "รันแบบจำลอง 2D rain-on-grid (ต้องรัน tool 2 ก่อน) + เขียน rain.csv/stage_*.csv สำหรับ HEC-RAS ; โดเมนที่มี long_h (ท่าตะโก) รันต่อ 14 วันเพื่อหาระยะเวลาท่วมขัง"
         self.canRunInBackground = False
 
     def getParameterInfo(self):
@@ -152,7 +152,7 @@ class RunHotspots:
 
     def execute(self, params, messages):
         import run_hotspots; importlib.reload(run_hotspots)
-        run_hotspots.main(params[0].valueAsText, hecras=True)
+        run_hotspots.main(params[0].valueAsText, hecras=True, long=True)
 
 
 class Calibrate:

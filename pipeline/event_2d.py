@@ -1,0 +1,193 @@
+# -*- coding: utf-8 -*-
+"""
+จำลองเหตุการณ์น้ำท่วมจริงย้อนหลัง (ปี 2564/2565/2568) บนโดเมน thatako_ev แล้วนำไปเทียบกับ Sentinel-1
+
+  python pipeline/event_2d.py --site . --year 2021 [--bank-off -1.0] [--loss 0.2] [--no-north] [--tag _b1]
+
+ข้อมูลนำเข้า hecras/thatako_ev/forcing/<year>.json (ดึงผ่าน Python ของ ArcGIS Pro เพราะเครื่องอื่นต่อ ThaiWater/Open-Meteo archive ไม่ได้):
+  stations: ระดับน้ำรายชั่วโมง ThaiWater waterlevel_graph (สถานีกรมชลประทาน Y.5 โพทะเล, N.67 ชุมแสง, C.2 ปากน้ำโพ)
+  rain:     Open-Meteo archive (ERA5) รายชั่วโมง lattice 0.1° 9×9 จุด
+ขอบเขต:
+  - cell แม่น้ำ: ผิวน้ำ = ท้องน้ำ (zbed) + ความลึกเหนือ z_ref ของสถานีที่ interpolate (IDW 2 สถานีใกล้สุด) — เหมือน run_hotspots
+  - ตลิ่งใช้งาน = ตลิ่งสถานี + bank_off (ติดลบ = น้ำเข้าทุ่งได้ก่อนถึงตลิ่ง ผ่านคลอง/ประตูน้ำ/จุดต่ำที่แคบกว่า cell)
+  - ปริมาณน้ำเข้าทุ่งรวม ≤ in_cap ลบ.ม./วิ (ความจุคลอง/ประตูน้ำ) — ถ้าไม่จำกัด ที่ลุ่มจะเติมจนระดับเท่าแม่น้ำ (bathtub) ท่วมเกินจริงมาก
+  - ขอบเหนือ (north): cell แถวบนสุดที่ต่ำกว่าระดับน้ำ Y.5 = ขอบเขตระดับน้ำ -> น้ำบ่าจากพิจิตรเข้าทางเหนือของชุมแสง
+ฝน -> น้ำท่า: SCS-CN + คันนา 100 มม. คำนวณที่จุด lattice ต่อชนิด (CN, คันนา) แล้ว IDW ไป cell (ประหยัดหน่วยความจำ ~20 เท่า)
+คัน/ประตูน้ำบึงบอระเพ็ด (--hold-level): น้ำออกจากแอ่ง (พื้นที่รับน้ำ ∪ ตำบลที่ศึกษา) ไม่ได้เมื่อระดับน้ำต่ำกว่าระดับเก็บกัก
+ผล: hecras/thatako_ev/runs/<year><tag>.npz (hmax, wet_h, last_wet, ความลึก ณ วันถ่ายภาพ Sentinel-1) + .json (สรุปรายตำบล)
+"""
+import argparse, json, math, os, sys, time
+from datetime import datetime, timezone, timedelta
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import model2d  # noqa: E402
+from run_hotspots import _runoff, _idw4, _ponding  # noqa: E402
+
+TZ7 = timezone(timedelta(hours=7))
+USE = ["Y.5", "N.67", "C.2"]                         # สถานีกรมชลประทาน (รายชั่วโมง, สะอาดกว่าโทรมาตร)
+BANK = {"Y.5": 30.15, "N.67": 28.21, "C.2": 25.70}   # ระดับตลิ่ง (ม.รทก.) จาก ThaiWater
+
+
+def clean_series(rows, t0, T):
+    """[[datetime_local, wl, q], ...] -> ระดับน้ำรายชั่วโมง T ค่า เริ่ม t0 (UTC epoch) : ตัดค่าผิดปกติ + เติมช่องว่าง"""
+    t = np.array([datetime.strptime(r[0], "%Y-%m-%d %H:%M").replace(tzinfo=TZ7).timestamp() for r in rows])
+    v = np.array([float(r[1]) for r in rows])
+    ok = (v > 5) & (v < 60)
+    t, v = t[ok], v[ok]
+    # despike: ห่างจากมัธยฐานเคลื่อนที่ 25 ค่าเกิน 0.8 ม.
+    med = np.array([np.median(v[max(i - 12, 0):i + 13]) for i in range(v.size)])
+    ok = np.abs(v - med) < 0.8
+    t, v = t[ok], v[ok]
+    tg = t0 + 3600 * np.arange(T)
+    return np.interp(tg, t, v, left=v[0], right=v[-1])
+
+
+def s1_snap_hours(t0, T, year, s1_dir):
+    """ชั่วโมงของภาพ Sentinel-1 (วงโคจร 62 ~23:09 UTC) ภายในช่วงจำลอง"""
+    out = {}
+    if s1_dir and os.path.isdir(s1_dir):
+        for f in sorted(os.listdir(s1_dir)):
+            if f.startswith(str(year)) and f.endswith("_wet.npz"):
+                ts = datetime.fromisoformat(f[:10] + "T23:00:00+00:00").timestamp()
+                h = int(round((ts - t0) / 3600))
+                if 0 < h < T:
+                    out[f[:10]] = h
+    return out
+
+
+def poly_mask(features, LA, LO):
+    """even-odd point-in-polygon ของจุดกลาง cell"""
+    out = np.zeros(LA.shape, bool)
+    for f in features:
+        g = f["geometry"]; polys = g["coordinates"] if g["type"] == "MultiPolygon" else [g["coordinates"]]
+        for poly in polys:
+            for ring in poly:
+                r = np.asarray(ring); c = np.zeros(LA.shape, bool)
+                xa, ya, xb, yb = r[:-1, 0], r[:-1, 1], r[1:, 0], r[1:, 1]
+                for i in range(len(xa)):
+                    cond = (ya[i] > LA) != (yb[i] > LA)
+                    xi = xa[i] + (LA - ya[i]) * (xb[i] - xa[i]) / (yb[i] - ya[i] if yb[i] != ya[i] else 1e-12)
+                    c ^= cond & (LO < xi)
+                out ^= c
+    return out
+
+
+class LazyRain:
+    """น้ำท่ารายชั่วโมงราย cell = Σ w·Q[t, จุด lattice, ชนิดพื้นที่] (ไม่เก็บ [T, ny, nx] ทั้งก้อน)"""
+    def __init__(self, Q, nn, w, inv, shape):
+        self.Q, self.nn, self.w, self.inv, self.shape = Q, nn, w, inv, shape
+
+    def __len__(self):
+        return self.Q.shape[0]
+
+    def __getitem__(self, t):
+        q = self.Q[t]                                        # [pts, U]
+        return (q[self.nn, self.inv[:, None]] * self.w).sum(1).reshape(self.shape).astype(np.float32)
+
+
+def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=True, tag="", hid="thatako_ev",
+        s1_dir=None, n_mult=1.0, hold_level=None, in_cap=None, log=print):
+    hs = os.path.join(site, "data", "static", "hotspots")
+    d = np.load(os.path.join(hs, f"{hid}.npz")); dom = {k: d[k] for k in d.files if k != "meta"}; m = json.loads(str(d["meta"]))
+    F = json.load(open(os.path.join(site, "hecras", hid, "forcing", f"{year}.json")))
+    ny, nx = dom["dem"].shape
+    t0 = datetime.fromisoformat(f"{year}-{start}T00:00:00+00:00").timestamp()
+    t1 = datetime.fromisoformat(f"{year}-{end}T00:00:00+00:00").timestamp()
+    T = int((t1 - t0) // 3600) + 1
+    # ---- ฝน -> น้ำท่า (อุ่นเครื่องตั้งแต่ต้นข้อมูล 1 ส.ค.)
+    R = F["rain"]; rt0 = datetime.fromisoformat(R["t0_utc"] + ":00+00:00").timestamp()
+    P = np.nan_to_num(np.array(R["P"], np.float32)).T               # [Tr, pts]
+    i0 = int((t0 - rt0) // 3600)
+    Pw = P[:i0 + T]
+    cn = np.where(dom["cn"] > 0, dom["cn"], 80).ravel().astype(np.float32)
+    bk = np.where(dom["crop"].ravel(), 100.0, 10.0).astype(np.float32)
+    key = cn * 1000 + bk; uk, inv = np.unique(key, return_inverse=True)
+    U = uk.size; npt = Pw.shape[1]
+    Pr = np.repeat(Pw, U, axis=1)                                   # [T, pts*U]
+    Q = _runoff(Pr, np.tile((uk // 1000).astype(np.float32), npt), np.tile((uk % 1000).astype(np.float32), npt), loss=0.25)
+    Q = Q.reshape(Q.shape[0], npt, U)[i0:]
+    (sw, ne) = m["bounds"]; la = np.linspace(ne[0], sw[0], ny); lo = np.linspace(sw[1], ne[1], nx)
+    LA, LO = np.meshgrid(la, lo, indexing="ij")
+    nn, w = _idw4(LA, LO, np.array(R["lat"]), np.array(R["lon"]))
+    rain_eff = LazyRain(Q, nn, w, inv, (ny, nx))
+    # ---- ระดับน้ำสถานี
+    st = {s["code"]: s for s in m["stations"]}
+    use = [c for c in USE if c in st and isinstance(F["stations"].get(c), list) and len(F["stations"][c]) > 100]
+    WL = {c: clean_series(F["stations"][c], t0, T) for c in use}
+    rr, cc = np.where(dom["river"] >= 0)
+    zb = (dom["zbed"] if "zbed" in dom else dom["dem"])[rr, cc].astype(np.float32)
+    slat = np.array([st[c]["lat"] for c in use]); slon = np.array([st[c]["lon"] for c in use])
+    dk = np.hypot((lo[cc][:, None] - slon[None]) * 107.1, (la[rr][:, None] - slat[None]) * 110.6)
+    nn2 = np.argsort(dk, 1)[:, :2]
+    wk = 1 / np.maximum(np.take_along_axis(dk, nn2, 1), 0.3) ** 2; wk /= wk.sum(1, keepdims=True)
+    D = np.array([np.maximum(WL[c] - st[c]["z_ref"], 0) for c in use])            # [K, T]
+    BH = np.array([max(BANK[c] - st[c]["z_ref"], 0.5) for c in use])
+    stage_r = lambda hr: zb + (D[nn2, min(hr, T - 1)] * wk).sum(1)
+    bank_r = zb + (BH[nn2] * wk).sum(1) + bank_off
+    # ---- ขอบเหนือ: ระดับน้ำ Y.5 (สัมบูรณ์) กับ cell แถวบน 2 แถว
+    river = dom["river"].copy()
+    n_edge = 0
+    if north and "Y.5" in WL:
+        edge = np.zeros_like(river, bool); edge[:2, :] = True
+        edge &= dom["valid"].astype(bool) & (river < 0)
+        river[edge] = 0
+        n_edge = int(edge.sum())
+    dom2 = dict(dom); dom2["river"] = river
+    if n_mult != 1.0:                                                               # ความขรุขระที่ราบ (คันนา/พืช) -> น้ำไหลช้าลง
+        dom2["n"] = np.where(dom["river"] >= 0, dom["n"], dom["n"] * n_mult).astype(np.float32)
+    rr2, cc2 = np.where(river >= 0)
+    is_r = dom["river"][rr2, cc2] >= 0                                              # ลำดับของ np.where(river>=0) ใหม่
+    pos_r = np.full(river.shape, -1, np.int32); pos_r[rr, cc] = np.arange(rr.size)
+    idx_r = pos_r[rr2, cc2]
+    z_edge = dom["dem"][rr2, cc2].astype(np.float32)
+    wl_y5 = WL.get("Y.5")
+
+    def stage_fn(hr):
+        s = np.empty(rr2.size, np.float32)
+        s[is_r] = stage_r(hr)[idx_r[is_r]]
+        if (~is_r).any():
+            s[~is_r] = np.maximum(wl_y5[min(hr, T - 1)], z_edge[~is_r])             # ต่ำกว่าพื้น = แห้ง (ไม่ไหลเข้า)
+        return s
+    bank = np.empty(rr2.size, np.float32); bank[is_r] = bank_r[idx_r[is_r]]; bank[~is_r] = z_edge[~is_r]
+    snaps = s1_snap_hours(t0, T, year, s1_dir)
+    hold = None
+    if hold_level is not None:            # แอ่งบึงบอระเพ็ด = พื้นที่รับน้ำที่ไหลลงพื้นที่ศึกษา ∪ ตำบลที่ศึกษา (ไม่รวมแม่น้ำ)
+        fs = []
+        for fn_ in ("thatako_contrib.geojson", "thatako_aoi.geojson"):
+            fs.append(poly_mask(json.load(open(os.path.join(hs, fn_), encoding="utf8"))["features"], LA, LO))
+        hold = (fs[0] | fs[1]) & (dom["river"] < 0)
+    tt = time.time()
+    r = model2d.run2d(dom2, m, rain_eff, T - 1, stage_fn, h0=None, loss_mmh=loss, snap_hours=tuple(snaps.values()),
+                      river_bank=bank, overflow_fn=(lambda hr: float(in_cap)) if in_cap else None, dur_from=0, zones=dom["aoi"], n_zones=len(m["aoi"]),
+                      hold_mask=hold, hold_level=hold_level)
+    rt = round(time.time() - tt, 1)
+    od = os.path.join(site, "hecras", hid, "runs"); os.makedirs(od, exist_ok=True)
+    name = f"{year}{tag}"
+    np.savez_compressed(os.path.join(od, name + ".npz"), hmax=r["hmax"].astype(np.float16), wet_h=r["wet_h"].astype(np.float16),
+                        last_wet=r["last_wet"].astype(np.float32), h_end=r["h"].astype(np.float16), zseries=r["zseries"],
+                        snap_dates=np.array(list(snaps.keys())),
+                        snaps=np.stack([r["snaps"].get(h, np.zeros((ny, nx), np.float32)) for h in snaps.values()]).astype(np.float16)
+                        if snaps else np.zeros((0, ny, nx), np.float16))
+    r["snaps"][0] = r["hmax"]
+    pd, _ = _ponding(m, dom, r, 1, 0, T, None, m["dx"])
+    summ = {"year": year, "start": f"{year}-{start}", "end": f"{year}-{end}", "bank_off": bank_off, "loss_mmh": loss, "north": north, "n_mult": n_mult, "hold_level": hold_level, "in_cap_m3s": in_cap,
+            "n_edge_cells": n_edge, "stations": use, "runtime_s": rt, "ponding": pd,
+            "wl_max": {c: round(float(WL[c].max()), 2) for c in use}, "snap_dates": list(snaps.keys())}
+    json.dump(summ, open(os.path.join(od, name + ".json"), "w", encoding="utf8"), ensure_ascii=False)
+    log(name, pd["total_new"], rt)
+    return summ
+
+
+if __name__ == "__main__":
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--site", default="."); ap.add_argument("--year", type=int, required=True)
+    ap.add_argument("--start", default="08-20"); ap.add_argument("--end", default="12-15")
+    ap.add_argument("--bank-off", type=float, default=0.0); ap.add_argument("--loss", type=float, default=0.2)
+    ap.add_argument("--no-north", action="store_true"); ap.add_argument("--tag", default="")
+    ap.add_argument("--s1-dir", default=None); ap.add_argument("--n-mult", type=float, default=1.0)
+    ap.add_argument("--hold-level", type=float, default=None, help="ระดับเก็บกักแอ่งบึงบอระเพ็ด (ม.รทก.) ; ไม่ใส่ = ไม่มีคัน/ประตูน้ำ")
+    ap.add_argument("--in-cap", type=float, default=None, help="ปริมาณน้ำเข้าทุ่งจากแม่น้ำรวมสูงสุด (ลบ.ม./วิ) — ความจุคลอง/ประตูน้ำ ; ไม่ใส่ = ไม่จำกัด")
+    a = ap.parse_args()
+    run(a.site, a.year, a.start, a.end, a.bank_off, a.loss, not a.no_north, a.tag, s1_dir=a.s1_dir, n_mult=a.n_mult,
+        hold_level=a.hold_level, in_cap=a.in_cap)

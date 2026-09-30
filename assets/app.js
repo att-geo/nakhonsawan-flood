@@ -89,6 +89,20 @@
     $("#tlStart").textContent = fmtT(frames.t[0]); $("#tlEnd").textContent = fmtT(frames.t[frames.t.length - 1]);
     renderAll();
     if (meta.sources?.gistda?.ok) loadGistda(v);
+    loadS1(v);
+  }
+
+  async function loadS1(v) {
+    const [g, st] = await Promise.all([jOpt("data/live/s1_flood.geojson", v), jOpt("data/live/s1_status.json", v)]);
+    S.s1status = st; renderAbout();
+    if (!g || !g.features?.length) return;
+    const when = g.properties?.t_acq ? new Date(g.properties.t_acq * 1000).toLocaleDateString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium" }) : "";
+    const on = S.s1 && map.hasLayer(S.s1);
+    if (S.s1) { map.removeLayer(S.s1); layerCtl.removeLayer(S.s1); }
+    S.s1 = L.geoJSON(g, { renderer, style: f => ({ color: "#7c3aed", weight: .6, fillColor: "#8b5cf6", fillOpacity: .15 + .5 * Math.min((f.properties["ท่วม_%"] || 0) / 100, 1) }),
+      onEachFeature: (f, l) => l.bindPopup(`<b>น้ำท่วมจาก Sentinel-1 (SAR)</b><br>${Object.entries(f.properties || {}).map(([k, x]) => `${k}: ${x}`).join("<br>")}<br><span class="note">แปลเองจากภาพเรดาร์ — ในเมือง/ใต้ต้นไม้อาจตรวจไม่พบ</span>`) });
+    layerCtl.addOverlay(S.s1, `Sentinel-1 น้ำท่วม (${when})`);
+    if (on) S.s1.addTo(map);
   }
 
   async function loadGistda(v) {
@@ -366,11 +380,12 @@
   function showHotMap() {
     loadDrainage().then(() => { [S.drainLines, S.assetLayer].forEach(l => l && !map.hasLayer(l) && l.addTo(map)); });
     Object.values(S.hotLayers).forEach(l => !map.hasLayer(l) && l.addTo(map));
+    Object.values(S.aoiLayers || {}).forEach(l => l && l !== "loading" && !map.hasLayer(l) && l.addTo(map));
   }
   function renderHot() {
     const h = S.hot || {}, ids = Object.keys(h).filter(k => !k.startsWith("_"));
     Object.values(S.hotLayers).forEach(l => { map.removeLayer(l); layerCtl.removeLayer(l); }); S.hotLayers = {};
-    ids.forEach(k => { const x = h[k], fn = x.png[S.hotSnap] || x.png.now;
+    ids.forEach(k => { const x = h[k], fn = x.png[S.hotSnap] || (S.hotSnap === "rem" ? null : x.png.now); if (!fn) return;
       S.hotLayers[k] = L.imageOverlay(`data/live/hotspots/${fn}?v=${encodeURIComponent(h._generated || "")}`, x.bounds, { opacity: .85, interactive: false });
       layerCtl.addOverlay(S.hotLayers[k], `2D: ${x.name}`); });
     if ($('.tabs button[data-tab="hot"]').classList.contains("active")) showHotMap();
@@ -384,6 +399,7 @@
         <line x1="${xn}" x2="${xn}" y1="0" y2="${H}" stroke="#dc2626" stroke-dasharray="3 2"/><text x="2" y="10" font-size="9" fill="currentColor" opacity=".6">${nf(mx, 1)} กม²</text></svg></div>`; }).join("")
       : `<p class="note">ยังไม่มีผล 2D — รัน <code>python pipeline/run_hotspots.py --site .</code> หรือรอรอบถัดไปของ GitHub Actions (ทุก 6 ชม.)</p>`;
     $$("#hotList .rv").forEach(el => el.onclick = () => { const x = h[el.dataset.k]; showHotMap(); map.fitBounds(x.bounds); });
+    renderPond(h, ids);
     const a = S.drainAssets, sm = S.meta?.summary || {};
     $("#drainInfo").innerHTML = a ? `สถานีสูบน้ำ ${a.pumps.length} แห่ง (ความจุรวม ${nf(a.pumps.reduce((q, x) => q + x.cap_m3s, 0))} ลบ.ม./วิ) · ประตูระบายน้ำ/ฝาย ${a.gates.length} แห่ง ·
       คลอง/คูระบาย ${nf((S.params.canal_km || []).reduce((q, x) => q + x, 0))} กม. ${sm.pumped_72h_mcm != null ? `· คาดสูบออก 72 ชม. ${nf(sm.pumped_72h_mcm, 2)} ล้าน ลบ.ม.` : ""}<br>
@@ -392,6 +408,128 @@
     $("#calibInfo").innerHTML = c ? `เวลาระบาย ×${nf(c.t_mult, 2)} · การล้นข้ามจุดล้น ×${nf(c.weir_c, 2)} · ความจุแอ่ง ×${nf(c.dcap_mult, 2)} ·
       คะแนน ${nf(c.score, 3)} (ค่าเริ่มต้น ${nf(c.baseline_score, 3)}) · สอบเทียบกับแบบจำลอง 2D ${c.hotspots?.length || 0} จุด เมื่อ ${c.calibrated_at ? new Date(c.calibrated_at).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }) : "–"}`
       : "ยังไม่ได้สอบเทียบ — ใช้ค่าเริ่มต้นตามหลักอุทกวิทยา";
+  }
+  // ---------------------------------------------------------------- ระยะเวลาท่วมขังรายตำบล (โดเมนที่มี AOI เช่น แอ่งท่าตะโก)
+  S.aoiLayers = {};
+  function renderPond(h, ids) {
+    const box = $("#pondBox"); if (!box) return;
+    const withAoi = ids.filter(k => h[k].aoi);
+    withAoi.forEach(k => { if (S.aoiLayers[k]) return; S.aoiLayers[k] = "loading";
+      jOpt(h[k].aoi, "s4").then(g => { if (!g) return;
+        S.aoiLayers[k] = L.geoJSON(g, { renderer, style: f => ({ color: f.properties.in_existing ? "#64748b" : "#7c3aed", weight: 1.6, fill: false, dashArray: f.properties.in_existing ? "4 3" : null }),
+          onEachFeature: (f, l) => l.bindTooltip(`ต.${f.properties.name} (อ.${f.properties.district})`, { sticky: true }) });
+        layerCtl.addOverlay(S.aoiLayers[k], `ตำบลที่ศึกษา: ${h[k].name}`);
+        if ($('.tabs button[data-tab="hot"]').classList.contains("active")) S.aoiLayers[k].addTo(map); }); });
+    const P = withAoi.map(k => [k, h[k].ponding]).filter(([, p]) => p && p.tambon && p.tambon[0] && "patch_km2" in p.tambon[0]);
+    const remTxt = (v, any) => !any ? "–" : v == null ? "> 14 วัน" : v === 0 ? "ลดแล้ว" : durTxt(v);
+    const remBar = r => { const tot = r.rem_km2.reduce((a, b) => a + b, 0); return tot > 0 ? `<div style="display:flex;height:7px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:2px">${r.rem_km2.map((v, i) => `<span style="width:${v / tot * 100}%;background:${REM_COL[i]}"></span>`).join("")}</div>` : ""; };
+    const leg = `<div class="note" style="margin:4px 0">${REM_COL.map((c, i) => `<span class="sw" style="background:${c}"></span>${REM_LBL[i]}`).join(" ")}</div>`;
+    box.innerHTML = (S.hotSnap === "rem" ? leg : "") + P.map(([k, p]) => { const t = p.total_new || {};
+      const tr = p.tambon.map(r => `<tr${r.in_existing ? ' style="opacity:.65"' : ""}><td>${r.name}<div class="note">${r.district}${r.in_existing ? " · มีในโดเมนชุมแสงแล้ว" : ""}</div></td>
+          <td>${nf(r.wet_now_km2, 1)}</td><td>${nf(r.patch_km2, 1)}</td><td>${nf(r.depth_p95_m, 2)}</td><td>${nf(r.wet_ge7d_km2, 1)}</td>
+          <td>${remTxt(r.rem_med_h, r.patch_km2 > 0)} / ${remTxt(r.rem_p90_h, r.patch_km2 > 0)}${remBar(r)}</td><td>${r.hex_rem_med_h == null ? "–" : durTxt(r.hex_rem_med_h)}</td></tr>`).join("");
+      return `<h3>ระยะเวลาท่วมขังรายตำบล — ${h[k].name}</h3>
+        <p class="note">จำลองต่อหลังพยากรณ์ 72 ชม. อีก ${Math.round((p.sim_h_after_now - p.fc_h) / 24)} วัน <b>โดยสมมติว่าไม่มีฝนเพิ่ม</b> และระดับน้ำแม่น้ำลดตามอัตราน้ำลดของสถานี ·
+          นับเฉพาะผืนน้ำ ≥ ${nf(p.min_patch_km2, 2)} กม² ไม่รวมแหล่งน้ำถาวร · รันเมื่อ ${new Date(p.t_run * 1000).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" })} ·
+          ${p.tambon.filter(r => !r.in_existing).length} ตำบลที่เพิ่มใหม่: ท่วมตอนนี้ <b>${nf(t.wet_now_km2, 1)}</b> กม² · ขัง ≥ 7 วัน <b>${nf(t.wet_ge7d_km2, 1)}</b> กม² ·
+          คาดลด (มัธยฐาน/P90) <b>${remTxt(t.rem_med_h, t.patch_km2 > 0)} / ${remTxt(t.rem_p90_h, t.patch_km2 > 0)}</b></p>
+        <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th><th>ท่วมตอนนี้ กม²</th><th>ผืนท่วม กม²</th><th>ลึก P95 ม.</th><th>ขัง ≥7 วัน กม²</th><th>คาดลด มัธยฐาน/P90</th><th>โมเดล hex คาดลด</th></tr></thead>
+        <tbody>${tr}</tbody></table></div>`; }).join("") + s1Html() + evHtml() + scnHtml();
+    $$("#pondBox [data-scn]").forEach(b => b.onclick = () => { const [key, lay] = b.dataset.scn.split(":"); showScn(key, lay); });
+    $$("#pondBox [data-s1]").forEach(b => b.onclick = () => showS1());
+    $$("#pondBox [data-ev]").forEach(b => b.onclick = () => showEv(b.dataset.ev));
+  }
+  // ---------------------------------------------------------------- สถานการณ์สมมติ (ไม่ขึ้นกับฝนวันนี้): ฝน × ระดับน้ำแม่น้ำ
+  S.scn = null; S.scnLayer = null;
+  jOpt("data/static/hotspots/thatako_scenarios.json", "s5").then(j => { S.scn = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
+  function showScn(key, lay) {
+    const x = S.scn?.[key]; if (!x) return;
+    if (S.scnLayer) { map.removeLayer(S.scnLayer); layerCtl.removeLayer(S.scnLayer); }
+    S.scnLayer = L.imageOverlay(`data/static/hotspots/scn/${x.png[lay]}`, S.scn._bounds, { opacity: .9, interactive: false }).addTo(map);
+    layerCtl.addOverlay(S.scnLayer, `สถานการณ์: ${key} (${lay === "rem" ? "เวลาน้ำลด" : "ความลึกสูงสุด"})`);
+    map.fitBounds(S.scn._bounds);
+  }
+  // ---------------------------------------------------------------- น้ำท่วมในอดีตจาก Sentinel-1 (2560–2568) เทียบกับแบบจำลอง
+  S.s1h = null; S.s1Layer = null;
+  jOpt("data/static/hotspots/thatako_s1_history.json", "s6").then(j => { S.s1h = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
+  function showS1() {
+    const j = S.s1h; if (!j) return;
+    if (S.s1Layer) { map.removeLayer(S.s1Layer); layerCtl.removeLayer(S.s1Layer); }
+    S.s1Layer = L.imageOverlay(`data/static/hotspots/${j.png}`, j.bounds, { opacity: .85, interactive: false }).addTo(map);
+    layerCtl.addOverlay(S.s1Layer, "Sentinel-1: จำนวนปีที่ท่วม ≥ 30 วัน (2560–2568)"); map.fitBounds(j.bounds);
+  }
+  function s1Html() {
+    const j = S.s1h; if (!j) return "";
+    const be = y => String(+y + 543).slice(2);
+    const ys = Object.keys(j.years);
+    const c = j.compare_ge7d_vs_obs, E = c.over_r250, D = c.bank_r250;
+    const leg = [["#bfdbfe", "1–2 ปี"], ["#60a5fa", "3–4"], ["#2563eb", "5–6"], ["#1e3a8a", "7–9"], ["#94a3b8", "แหล่งน้ำถาวร"]].map(([cc, t]) => `<span class="sw" style="background:${cc}"></span>${t}`).join(" ");
+    return `<h3>เทียบกับน้ำท่วมจริง — Sentinel-1 ปี 2560–2568</h3>
+      <p class="note">ภาพเรดาร์ ${ys.reduce((a, y) => a + j.years[y].n_img, 0)} ภาพ (ส.ค.–15 ธ.ค. ทุก 6–12 วัน) · พื้นที่ท่วม ≥ 30 วัน อย่างน้อย 3 ใน ${ys.length} ปี = <b>${nf(j.obs_ge30d_ge3y_km2, 0)}</b> กม² ในพื้นที่ศึกษา ·
+        แบบจำลองสถานการณ์ E (ล้นตลิ่ง) ตรงกับที่ท่วมจริง POD ${nf(E.POD, 2)} · CSI ${nf(E.CSI, 2)} ; น้ำเท้อไม่ล้นตลิ่ง (D) POD ${nf(D.POD, 2)} · CSI ${nf(D.CSI, 2)}
+        <br><button class="chip" data-s1="1">แผนที่ความถี่การท่วม</button> ${leg}</p>
+      <p class="note">พื้นที่ท่วม ≥ 60 วัน (กม²) รายปี: ${ys.map(y => `${be(y)}: <b>${nf(j.years[y].aoi_ge60d_km2, 0)}</b>`).join(" · ")}</p>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th><th>ท่วม ≥30 วัน ≥3 ปี กม²</th><th>ท่วม ≥60 วัน ≥3 ปี กม²</th><th>ระยะเวลาท่วม มัธยฐาน (วัน) ปี 60/64/65/67/68</th><th>แบบจำลอง E ขัง ≥7 วัน กม²</th></tr></thead>
+      <tbody>${j.tambon.map(r => `<tr${r.in_existing ? ' style="opacity:.65"' : ""}><td>${r.name}<div class="note">${r.district}</div></td><td>${nf(r.ge30d_ge3y_km2, 1)}</td><td>${nf(r.ge60d_ge3y_km2, 1)}</td>
+        <td>${Object.values(r.dur_med_d_big_years).map(v => v == null ? "–" : nf(v, 0)).join(" / ")}</td><td>${nf(r.model_ge7d_km2.over_r250, 1)}</td></tr>`).join("")}</tbody></table></div>
+      <p class="note">${j.season} · น้ำใต้ต้นข้าว/พืชสูงตรวจไม่พบ (อาจนับต่ำในที่นา) · ${j.method}</p>`;
+  }
+  // ---------------------------------------------------------------- จำลองเหตุการณ์จริง 2564/2565/2568 เทียบ Sentinel-1 (event_2d.py → events_web.py)
+  S.ev = null; S.evLayer = null;
+  jOpt("data/static/hotspots/thatako_events.json", "s7").then(j => { S.ev = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
+  function showEv(y) {
+    const j = S.ev, e = j?.years?.[y]; if (!e?.png) return;
+    if (S.evLayer) { map.removeLayer(S.evLayer); layerCtl.removeLayer(S.evLayer); }
+    S.evLayer = L.imageOverlay(`data/static/hotspots/ev/${e.png}`, j._bounds, { opacity: .85, interactive: false }).addTo(map);
+    layerCtl.addOverlay(S.evLayer, `เหตุการณ์ปี ${+y + 543}: ท่วม ≥ 30 วัน จำลอง vs ดาวเทียม`); map.fitBounds(j._bounds);
+  }
+  function evChart(e) {
+    const W = 300, H = 120, pl = 30, pb = 16, d = e.daily, n = d.length;
+    const t0 = Date.parse(e.start), t1 = Date.parse(e.end), mx = Math.max(100, ...d.map(r => Math.max(r.obs_km2, r.mod_km2)));
+    const X = s => pl + (Date.parse(s) - t0) / (t1 - t0) * (W - pl - 4), Y = v => H - pb - v / mx * (H - pb - 6);
+    const line = (k, c, dash) => `<polyline fill="none" stroke="${c}" stroke-width="1.8" ${dash ? 'stroke-dasharray="4 2"' : ""} points="${d.map(r => `${X(r.date).toFixed(1)},${Y(r[k]).toFixed(1)}`).join(" ")}"/>` +
+      d.map(r => `<circle cx="${X(r.date).toFixed(1)}" cy="${Y(r[k]).toFixed(1)}" r="2" fill="${c}"><title>${r.date}: ${nf(r[k], 0)} กม²</title></circle>`).join("");
+    const mon = []; for (let m = new Date(e.start.slice(0, 8) + "01"); m <= new Date(e.end); m.setMonth(m.getMonth() + 1)) if (m >= new Date(e.start)) mon.push(new Date(m));
+    const ax = mon.map(m => { const x = X(m.toISOString().slice(0, 10)); return `<line x1="${x}" x2="${x}" y1="4" y2="${H - pb}" stroke="var(--line)"/><text x="${x + 2}" y="${H - 4}" font-size="9" fill="currentColor">${m.toLocaleDateString("th-TH", { month: "short" })}</text>`; }).join("");
+    const gy = [0, .5, 1].map(f => `<text x="${pl - 3}" y="${Y(mx * f) + 3}" font-size="9" text-anchor="end" fill="currentColor">${nf(mx * f, 0)}</text>`).join("");
+    return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:${W}px;height:auto">${ax}${gy}${line("obs_km2", "#2563eb")}${line("mod_km2", "#dc2626", 1)}</svg>`;
+  }
+  function evHtml() {
+    const j = S.ev; if (!j) return "";
+    const ys = Object.keys(j.years); if (!ys.length) return "";
+    const be = y => +y + 543, e0 = j.years[ys[0]], p = e0.params || {};
+    const leg = j._legend.map(([c, t]) => `<span class="sw" style="background:${c}"></span>${t}`).join(" ");
+    const names = e0.tambon.map(r => r.name);
+    const wl = ys.map(y => j.years[y].wl_max?.["N.67"] != null ? `${be(y)}: ${nf(j.years[y].wl_max["N.67"], 1)}` : "").filter(Boolean).join(" · ");
+    return `<h3>จำลองเหตุการณ์จริงปี ${ys.map(be).join(" / ")} เทียบ Sentinel-1</h3>
+      <p class="note">แบบจำลอง 2D โดเมนขยาย (cell 300 ม. ขึ้นเหนือถึง Y.5 โพทะเล) ใช้ระดับน้ำจริง Y.5 / N.67 / C.2 รายชั่วโมง + ฝน ERA5 ช่วง 20 ส.ค.–15 ธ.ค. ·
+        เทียบภาพเรดาร์วันเดียวกัน (น้ำจำลองลึก ≥ ${nf(j._thr_m, 1)} ม.) · พารามิเตอร์: ตลิ่งใช้งาน = ตลิ่งสถานี ${+p.bank_off < 0 ? "−" : "+"}${nf(Math.abs(+p.bank_off), 1)} ม., น้ำเข้าทุ่ง ≤ ${nf(+p.in_cap_m3s, 0)} ลบ.ม./วิ,
+        เก็บน้ำบึงบอระเพ็ด +${nf(+p.hold_level, 1)} ม., ระเหย+ซึม ${nf(+p.loss_mmh, 2)} มม./ชม., Manning ที่ราบ ×${nf(+p.n_mult, 0)}</p>
+      <p class="note">⚠️ <b>N.67 ชุมแสงไม่ถึงตลิ่ง (28.21 ม.) ทั้ง 3 ปี</b> (สูงสุด ${wl} ม.) แต่ดาวเทียมเห็นท่วมนาน 2–3 เดือนทุกปี → น้ำเข้าทุ่ง/บึงผ่านคลอง ประตูน้ำ และช่องต่ำก่อนถึงระดับตลิ่ง</p>
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ปี</th><th>CSI รายวัน</th><th>ท่วม ≥30 วัน จำลอง / จริง กม²</th><th>POD</th><th>FAR</th><th>CSI</th><th>แผนที่</th></tr></thead>
+      <tbody>${ys.map(y => { const e = j.years[y], g = e.ge30d; return `<tr><td>${be(y)}</td><td>${nf(e.csi_daily_mean, 2)}</td><td>${nf(g.mod_km2, 0)} / ${nf(g.obs_km2, 0)}</td>
+        <td>${nf(g.POD, 2)}</td><td>${nf(g.FAR, 2)}</td><td><b>${nf(g.CSI, 2)}</b></td><td>${e.png ? `<button class="chip" data-ev="${y}">ดู</button>` : "–"}</td></tr>`; }).join("")}</tbody></table></div>
+      <p class="note">${leg}</p>
+      <p class="note">พื้นที่ท่วมรายวันในตำบลที่ศึกษา (กม²): <span style="color:#2563eb">● ดาวเทียม</span> <span style="color:#dc2626">■ แบบจำลอง</span></p>
+      ${ys.map(y => `<div class="note" style="margin-top:4px"><b>ปี ${be(y)}</b></div>${evChart(j.years[y])}`).join("")}
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th>${ys.map(y => `<th>${be(y)}</th>`).join("")}</tr></thead>
+      <tbody>${names.map((nm, i) => `<tr><td>${nm}</td>${ys.map(y => { const r = j.years[y].tambon[i]; return `<td>${nf(r.mod_ge30d_km2, 0)} / ${nf(r.obs_ge30d_km2, 0)}</td>`; }).join("")}</tr>`).join("")}</tbody></table></div>
+      <p class="note">ตาราง = ท่วม ≥ 30 วัน จำลอง / จริง (กม²) · ที่ยังไม่ตรง: น้ำมาช้ากว่าจริง 1–2 สัปดาห์ในปี 65 และ 68 (น้ำก้อนแรกน่าจะมาจากพิจิตร/ยม และไพศาลี),
+        ไผ่สิงห์ท่วมจริงนานกว่าแบบจำลองมาก, ปี 64 ช่วงพายุปลาย ก.ย. จำลองท่วมเกิน (น้ำตื้นในนาที่เรดาร์มองไม่เห็น), น้ำลดเร็วเกินช่วง ธ.ค. ปี 65 ·
+        ขั้นต่อไป: ใช้ Q ของ Y.17/N.7A เป็นน้ำไหลเข้าจากเหนือ, burn ลำน้ำนอกจังหวัด, ระดับน้ำบึงบอระเพ็ด/การเปิดประตูจาก ชป.</p>`;
+  }
+  function scnHtml() {
+    const j = S.scn; if (!j) return "";
+    const keys = Object.keys(j).filter(k => !k.startsWith("_")); if (!keys.length) return "";
+    const lbl = k => `ฝน ${nf(j[k].rain_mm)} มม./${j[k].rain_days} วัน · แม่น้ำ${j[k].river}`;
+    const names = j[keys[0]].ponding.tambon.map(r => r.name);
+    const cell = (k, i) => { const r = j[k].ponding.tambon[i]; return `<td title="ท่วมสูงสุด ${nf(r.wet_now_km2, 1)} กม² · ขัง ≥ 7 วัน ${nf(r.wet_ge7d_km2, 1)} กม² · ยังไม่ลดวันสุดท้าย ${nf(r.wet_ge14d_km2, 1)} กม²">${nf(r.wet_now_km2, 0)}<div class="note" style="white-space:nowrap">${nf(r.wet_ge7d_km2, 0)}</div></td>`; };
+    return `<h3>สถานการณ์สมมติ — แอ่งท่าตะโก (จำลอง ${j[keys[0]].days} วัน เริ่มจากแห้ง)</h3>
+      <p class="note">แยกผลของ “ฝนในพื้นที่” กับ “น้ำเท้อจากแม่น้ำน่าน/เจ้าพระยา” · ช่องตาราง = พื้นที่ท่วมสูงสุดที่เป็นผืน (กม²) / บรรทัดล่าง = ขัง ≥ 7 วัน (กม²) · แผนที่เวลาน้ำลดนับจากฝนเริ่มตก · กดปุ่มเพื่อดูแผนที่</p>
+      ${keys.map((k, n) => `<div class="note" style="margin:3px 0"><b>${String.fromCharCode(65 + n)}</b> ${lbl(k)} ·
+        <button class="chip" data-scn="${k}:max">ความลึกสูงสุด</button> <button class="chip" data-scn="${k}:rem">เวลาน้ำลด</button></div>`).join("")}
+      <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th>${keys.map((k, n) => `<th>${String.fromCharCode(65 + n)}</th>`).join("")}</tr></thead>
+      <tbody>${names.map((nm, i) => `<tr${j[keys[0]].ponding.tambon[i].in_existing ? ' style="opacity:.65"' : ""}><td>${nm}</td>${keys.map(k => cell(k, i)).join("")}</tr>`).join("")}</tbody></table></div>`;
   }
   $$("#hotSeg button").forEach(b => b.onclick = () => { S.hotSnap = b.dataset.snap; $$("#hotSeg button").forEach(x => x.classList.toggle("active", x === b)); renderHot(); });
 
@@ -427,7 +565,8 @@
         <li>${ok("thaiwater_rain")} ThaiWater ฝน 24 ชม. ${src.thaiwater_rain?.used ?? "–"} สถานีที่ใช้ปรับแก้</li>
         <li>${ok("thaiwater_level")} ThaiWater ระดับน้ำ ${src.thaiwater_level?.stations ?? "–"} สถานี</li>
         <li>${ok("upstream")} ลุ่มน้ำต้นน้ำ ${src.upstream?.zones ?? "–"} zones · ${src.upstream?.entries ?? "–"} จุดน้ำเข้า</li>
-        <li>${ok("gistda")} GISTDA น้ำท่วมจากดาวเทียม ${src.gistda?.ok ? src.gistda.features + " แปลง" : "(" + (src.gistda?.error || "ปิด") + ")"}</li></ul>
+        <li>${ok("gistda")} GISTDA น้ำท่วมจากดาวเทียม ${src.gistda?.ok ? src.gistda.features + " แปลง" : "(" + (src.gistda?.error || "ปิด") + ")"}</li>
+        <li>${S.s1status?.ok ? "✅" : "⚠️"} Sentinel-1 SAR (Planetary Computer, ไม่ต้องใช้ key) ${S.s1status?.latest ? "ภาพล่าสุด " + new Date(S.s1status.latest.t_acq * 1000).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }) + " · ท่วม " + S.s1status.latest.km2 + " กม² · " + S.s1status.records + " ภาพสะสม" : "(" + (S.s1status?.error || "ยังไม่มีภาพ") + ")"}</li></ul>
       <p class="note">โมเดล: ${m.model} · ใช้เวลา ${m.runtime_s} วินาที</p>
       <h4>ขั้นตอนวิเคราะห์</h4>
       <p><b>ภูมิประเทศ (ArcGIS Pro)</b> — FABDEM 30 ม. (Copernicus DEM ที่ตัดอาคาร/ต้นไม้ออก) + burn ลำน้ำ/คลองจาก OpenStreetMap + ยกคันกั้นน้ำ → Fill, Flow Direction, Flow Accumulation, HAND, ความลาดชัน; ESA WorldCover → Curve Number; สรุปลง hex 1 กม² พร้อม<b>เครือข่ายการไหล</b>: สัดส่วนการไหลไปยัง hex ข้างเคียงหลายทิศ (จากเส้นทางน้ำ D8 ทุก cell ที่ข้ามขอบ hex), <b>ระดับจุดล้น</b>ระหว่าง hex (P5 ของความสูงตามแนวขอบ) และ<b>ความสัมพันธ์ระดับ-ปริมาตร</b>ของแต่ละ hex (ความสูง P0–P100)</p>

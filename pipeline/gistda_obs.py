@@ -196,7 +196,7 @@ def update(site, feats, lon, lat, hex_km2=1.0, now=None):
 
 # ---------------------------------------------------------------- เทียบกับโมเดล
 def evaluate(arch, d, f, times, i_now, is_water, hex_km2=1.0):
-    """เทียบพื้นที่ท่วมสูงสุดของโมเดลในหน้าต่างเวลา กับ GISTDA ราย hex
+    """เทียบพื้นที่ท่วมสูงสุดของโมเดลในหน้าต่างเวลา กับภาพดาวเทียมราย hex (ระเบียน GISTDA และ Sentinel-1 ใช้รูปแบบเดียวกัน)
     d, f : (T, N) ความลึก (ซม.) และสัดส่วนพื้นที่ท่วมจาก simulate_v3 ; times : unix ชั่วโมง ; คืน (สรุป, รายระเบียน)"""
     N = d.shape[1]; land = ~np.asarray(is_water)
     t0, t1 = int(times[0]), int(times[min(i_now, len(times) - 1)])
@@ -209,20 +209,25 @@ def evaluate(arch, d, f, times, i_now, is_water, hex_km2=1.0):
         if b - a < 2: continue
         mf = (f[a:b] * (d[a:b] >= 10)).max(0)
         of = np.zeros(N); of[np.asarray(r["hex"], int)] = r["frac"]
-        m_flag, o_flag = (mf >= FRAC_T) & land, (of >= FRAC_T) & land
+        ok = land.copy()
+        if r.get("nocov"): ok[np.asarray(r["nocov"], int)] = False     # hex ที่ภาพไม่ครอบคลุม/เชื่อถือไม่ได้ (Sentinel-1) ไม่นับทั้งสองฝั่ง
+        m_flag, o_flag = (mf >= FRAC_T) & ok, (of >= FRAC_T) & ok
         h = int((m_flag & o_flag).sum()); miss = int((~m_flag & o_flag).sum()); fa = int((m_flag & ~o_flag).sum())
-        a_m, a_o = float(mf[land].sum() * hex_km2), float(of[land].sum() * hex_km2)
-        rows.append({"key": r["key"], "n_hex_obs": int(o_flag.sum()), "n_hex_model": int(m_flag.sum()),
+        a_m, a_o = float(mf[ok].sum() * hex_km2), float(of[ok].sum() * hex_km2)
+        rows.append({"key": r["key"], "src": r.get("src", "gistda"), "n_hex_obs": int(o_flag.sum()), "n_hex_model": int(m_flag.sum()),
                      "csi": round(h / max(h + miss + fa, 1), 3), "pod": round(h / max(h + miss, 1), 3),
                      "far": round(fa / max(h + fa, 1), 3), "km2_obs": round(a_o, 1), "km2_model": round(a_m, 1),
                      "bias": round(a_m / max(a_o, 1e-6), 2)})
     if not rows:
         return None, rows
+    by_src = {}
+    for x in rows: by_src.setdefault(x["src"], []).append(x["csi"])
     csi = float(np.mean([x["csi"] for x in rows]))
     brel = float(np.mean([min(abs(x["km2_model"] - x["km2_obs"]) / max(x["km2_obs"], 1e-6), 2.0) for x in rows]))
     return {"n": len(rows), "csi": round(csi, 4), "pod": round(float(np.mean([x["pod"] for x in rows])), 4),
             "far": round(float(np.mean([x["far"] for x in rows])), 4), "area_rel_err": round(brel, 4),
-            "term": round((1 - csi) + 0.25 * brel, 4)}, rows
+            "term": round((1 - csi) + 0.25 * brel, 4),
+            "by_src": {k: {"n": len(v), "csi": round(float(np.mean(v)), 4)} for k, v in by_src.items()}}, rows
 
 
 # ---------------------------------------------------------------- probe

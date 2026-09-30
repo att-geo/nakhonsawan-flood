@@ -2,9 +2,11 @@
 """
 รันแบบจำลอง 2D rain-on-grid ของจุดวิกฤต (ต้องรัน pipeline/run_update.py ก่อน เพื่อให้มี rain_cache / hex_state / upstream)
 
-  python pipeline/run_hotspots.py --site . [--only mueang] [--hecras]
+  python pipeline/run_hotspots.py --site . [--only mueang] [--hecras] [--long]
 
 ผลลัพธ์ data/live/hotspots/<id>_{now,p24,p48,p72,max72}.png + hotspots_live.json
+--long: โดเมนที่มี long_h (เช่น ท่าตะโก) รันต่อหลังพยากรณ์อีก long_h ชม. โดยไม่มีฝน และระดับน้ำในแม่น้ำลดตาม recession
+        ของสถานี -> ระยะเวลาที่น้ำขังจะลด ราย cell (<id>_rem.png) และรายตำบล (hotspots_live[<id>].ponding)
 """
 import argparse, json, math, os, sys, time
 from datetime import datetime, timezone, timedelta
@@ -17,13 +19,26 @@ TZ = timezone(timedelta(hours=7))
 PAST_H, FC_H = 48, 72
 
 
-def _stage_series(meta, stations, rivers, hist, times, i0, i_now, T):
+def _q_ext(rv, ext_h):
+    """เวลา/ปริมาณน้ำพยากรณ์ของลำน้ำ ต่อท้ายด้วย recession Q = Qb + (Q_last − Qb)·e^(−t/k) อีก ext_h ชม."""
+    tt = np.array(rv["t"], np.int64); qf = np.array([np.nan if v is None else v for v in rv["q_fc"]], float)
+    ok = ~np.isnan(qf)
+    if ext_h and ok.any():
+        rc = rv.get("recession") or {}
+        k = max(float(rc.get("k_h") or 72.0), 6.0); tl = int(tt[ok][-1]); ql = float(qf[ok][-1])
+        qb = min(float(rc.get("q_base") or 0.0), ql)
+        dt_ = np.arange(1, ext_h + 1)
+        tt = np.concatenate([tt, tl + 3600 * dt_]); qf = np.concatenate([qf, qb + (ql - qb) * np.exp(-dt_ / k)])
+    return tt, qf
+
+
+def _stage_series(meta, stations, rivers, hist, times, i0, i_now, T, ext_h=0):
     """ความลึกน้ำในลำน้ำ (wl - z_ref) รายชั่วโมงของแต่ละสถานีในโดเมน: อดีตจากประวัติ, อนาคตจาก Q พยากรณ์ผ่าน rating h ~ Q^0.6"""
     by = {s["code"]: s for s in stations}
     rq = {}
     for r in rivers or []:
         if r.get("q_obs"):
-            tt = np.array(r["t"]); qf = np.array([np.nan if v is None else v for v in r["q_fc"]], float)
+            tt, qf = _q_ext(r, ext_h)
             rq[r["gauge"]] = (tt, qf, r["q_obs"])
     reach_of = {c: key for key, (_, g, codes, _) in upm.REACHES.items() for c in codes}
     gauge_of = {key: g for key, (_, g, _, _) in upm.REACHES.items()}
@@ -74,7 +89,92 @@ def _runoff(P, cn2, bucket, loss=0.25):
     return out
 
 
-def main(site, only=None, hecras=False):
+def _idw4(LA, LO, glat, glon, chunk=20000):
+    """index + น้ำหนัก IDW 4 จุดกริดฝนใกล้สุด ราย cell (ทำเป็นชุด เพื่อไม่ใช้หน่วยความจำ cells × จุดกริด ทีเดียว)"""
+    la, lo = LA.ravel(), LO.ravel(); nn = np.zeros((la.size, 4), np.int32); w = np.zeros((la.size, 4), np.float32)
+    for a in range(0, la.size, chunk):
+        dd = np.hypot((lo[a:a + chunk, None] - glon[None]) * 107.1, (la[a:a + chunk, None] - glat[None]) * 110.6)
+        k = np.argpartition(dd, 4, axis=1)[:, :4]
+        ww = 1 / np.maximum(np.take_along_axis(dd, k, 1), 0.5) ** 2
+        nn[a:a + chunk] = k; w[a:a + chunk] = ww / ww.sum(1, keepdims=True)
+    return nn, w
+
+
+MIN_PATCH_KM2 = 0.25          # ผืนน้ำท่วมที่เล็กกว่านี้ (แอ่ง/บ่อ/หลุมใน DEM เพียงไม่กี่ cell) ไม่นับเป็น "ท่วมขัง"
+
+
+def _patches(wet, min_km2, ca):
+    """cell ที่อยู่ในผืนน้ำ (เชื่อมกัน 8 ทิศ) ขนาด ≥ min_km2 ; ไม่มี scipy -> คืน wet เดิม"""
+    try:
+        from scipy import ndimage
+    except ImportError:
+        return wet
+    lab, n = ndimage.label(wet, structure=np.ones((3, 3), bool))
+    if n == 0:
+        return wet
+    size = np.bincount(lab.ravel()) * ca
+    keep = size >= min_km2; keep[0] = False
+    return keep[lab]
+
+
+def _ponding(m, dom, r, T_fc, h_now_idx, T_tot, hexst_status, dx, min_patch=MIN_PATCH_KM2):
+    """สรุประยะเวลาท่วมขังรายตำบล (AOI) จากผลที่รันต่อหลังพยากรณ์
+    นับเฉพาะผืนน้ำ ≥ min_patch กม² (ตัดแอ่งเล็ก/บ่อ/ความคลาดเคลื่อน DEM) และไม่นับแหล่งน้ำถาวร (Manning ของ WorldCover น้ำ)"""
+    aoi = dom["aoi"]; riv = dom["river"] >= 0; valid = dom["valid"].astype(bool)
+    ca = dx * dx / 1e6
+    water = np.isclose(dom["n"], 0.03)                                # WorldCover 80 (น้ำ) — 70/100 ไม่มีในไทย
+    ever = (r["hmax"] >= 0.10) & valid & ~riv & ~water
+    sig = _patches(ever, min_patch, ca)
+    sim_h = T_tot - 1 - h_now_idx
+    rem = np.where(r["last_wet"] >= 0, r["last_wet"] - h_now_idx, -1.0)
+    still = (r["h"] >= 0.10) & sig
+    rem = np.where(still, 1e6, rem)                                  # ยังท่วมเมื่อจบ = เกินช่วงจำลอง
+    h_now = r["snaps"].get(h_now_idx, r["h"])
+    zser = r["zseries"]
+    rows = []
+    for zi, a in enumerate(m["aoi"]):
+        zz = (aoi == zi) & valid & ~riv
+        if not zz.any():
+            continue
+        z = zz & sig
+        s_ = zser[h_now_idx:, zi] if zser.size else np.zeros(1)
+        rz = rem[z & (rem >= 0)]
+        # None = ยังไม่ลดภายในช่วงจำลอง ; 0 = ไม่มีผืนน้ำท่วมตั้งแต่ตอนนี้ (ลดแล้ว/ไม่ท่วม)
+        q = (lambda p_: 0 if not rz.size else None if np.percentile(rz, p_) > sim_h else int(np.percentile(rz, p_)))
+        hz = r["hmax"][z]
+        wn = z & (h_now >= 0.10)
+        row = {"code": a["code"], "name": a["name"], "district": a["district"], "area_km2": a["area_km2"],
+               "in_existing": a["in_existing"],
+               "wet_now_km2": round(float(wn.sum() * ca), 2),
+               "patch_km2": round(float(z.sum() * ca), 2),                   # พื้นที่ที่ท่วมเป็นผืน (ช่วงใดช่วงหนึ่ง)
+               "wet_peak_km2": round(float(s_.max()), 2) if s_.size else 0.0, # พร้อมกันสูงสุด (รวมแอ่งเล็ก)
+               "peak_in_h": int(s_.argmax()) if s_.size and s_.max() > 0 else None,
+               "depth_p95_m": round(float(np.percentile(hz, 95)), 2) if hz.size else 0.0,
+               "vol_now_mcm": round(float(h_now[wn].sum() * dx * dx / 1e6), 3),
+               "wet_ge7d_km2": round(float((z & (r["wet_h"] >= 168)).sum() * ca), 2),
+               "wet_ge14d_km2": round(float(still[zz].sum() * ca), 2),
+               "rem_med_h": q(50), "rem_p90_h": q(90),                          # None = เกินช่วงจำลอง
+               "rem_km2": [round(float(((rz >= lo_) & (rz < hi_)).sum() * ca), 2)
+                           for lo_, hi_ in ((0, 24), (24, 72), (72, 168), (168, 336), (336, 1e12))],
+               "unfiltered_wet_ge7d_km2": round(float((zz & ~water & (r["wet_h"] >= 168)).sum() * ca), 2)}
+        if hexst_status is not None:                                   # เทียบกับโมเดล hex: เวลาคาดลด (มัธยฐานของ hex ที่ท่วมในตำบล)
+            hx = np.unique(dom["hex"][zz]); hx = hx[hx >= 0]
+            c = np.array(hexst_status["c"])[hx] > 0; rr = np.array(hexst_status["r"])[hx][c]
+            row["hex_wet_n"] = int(c.sum()); row["hex_rem_med_h"] = int(np.median(rr)) if rr.size else None
+        rows.append(row)
+    new = [x for x in rows if not x["in_existing"]]
+    tot = {k: round(sum(x[k] for x in new), 2)
+           for k in ("area_km2", "wet_now_km2", "patch_km2", "wet_peak_km2", "vol_now_mcm", "wet_ge7d_km2", "wet_ge14d_km2")}
+    zn = np.isin(aoi, [i for i, a in enumerate(m["aoi"]) if not a["in_existing"]]) & sig
+    rz = rem[zn & (rem >= 0)]
+    tot["rem_med_h"] = 0 if not rz.size else None if np.median(rz) > sim_h else int(np.median(rz))
+    tot["rem_p90_h"] = 0 if not rz.size else None if np.percentile(rz, 90) > sim_h else int(np.percentile(rz, 90))
+    s_all = zser[h_now_idx:, [i for i, a in enumerate(m["aoi"]) if not a["in_existing"]]].sum(1)
+    return {"sim_h_after_now": int(sim_h), "fc_h": int(T_fc - 1 - h_now_idx), "rain_after_fc": 0, "min_patch_km2": min_patch,
+            "tambon": rows, "total_new": tot, "series_new_km2": [round(float(v), 2) for v in s_all]}, sig
+
+
+def main(site, only=None, hecras=False, long=False):
     t0 = time.time()
     st_dir = os.path.join(site, "data", "static"); lv = os.path.join(site, "data", "live")
     hs_dir = os.path.join(st_dir, "hotspots"); out_dir = os.path.join(lv, "hotspots"); os.makedirs(out_dir, exist_ok=True)
@@ -93,6 +193,8 @@ def main(site, only=None, hecras=False):
     i1 = min(len(times) - 1, i_now + FC_H)
     T = i1 - i0 + 1
     wse0 = np.array(hexst["wse"]); free0 = np.array(hexst["free"])
+    sp = os.path.join(lv, "status.json")
+    status = json.load(open(sp, encoding="utf8")) if os.path.exists(sp) else None
     live = {}
     for hid_, m in idx.items():
         if only and hid_ not in only:
@@ -104,8 +206,7 @@ def main(site, only=None, hecras=False):
         (sw, ne) = m["bounds"]
         la = np.linspace(ne[0], sw[0], ny); lo = np.linspace(sw[1], ne[1], nx)
         LA, LO = np.meshgrid(la, lo, indexing="ij")
-        dd = np.hypot((LO.ravel()[:, None] - glon[None]) * 107.1, (LA.ravel()[:, None] - glat[None]) * 110.6)
-        nn = np.argsort(dd, 1)[:, :4]; w = 1 / np.maximum(np.take_along_axis(dd, nn, 1), 0.5) ** 2; w /= w.sum(1, keepdims=True)
+        nn, w = _idw4(LA, LO, glat, glon)
         iw = max(i0 - 120, 0)                                               # อุ่นเครื่อง 5 วันสำหรับ AMC/คันนา
         Pc = np.stack([(Pg[t][nn] * w).sum(1) for t in range(iw, i1 + 1)]).astype(np.float32)   # [Tw, cells]
         qe = _runoff(Pc, dom["cn"].ravel().astype(np.float32), np.where(dom["crop"].ravel(), 100.0, 10.0).astype(np.float32))
@@ -124,7 +225,10 @@ def main(site, only=None, hecras=False):
         target = free0 / 1000.0 * area_c
         sc = np.where(vol_c > 0, np.minimum(target / np.maximum(vol_c, 1e-9), 1.0), 0)
         h0 = np.where(ok, h0 * sc[np.maximum(hx, 0)], 0).astype(np.float32)
-        stage = _stage_series(m, stations, rivers, hist, times, i0, i_now, T)
+        ext_h = int(m.get("long_h", 0)) if long else 0
+        T_tot = T + ext_h
+        tx = np.concatenate([times[:i1 + 1], times[i1] + 3600 * np.arange(1, ext_h + 1)]).astype(np.int64)
+        stage = _stage_series(m, stations, rivers, hist, tx, i0, i_now, T_tot, ext_h)
         # ระดับผิวน้ำตามแนวลำน้ำ: ความลึกน้ำเหนือท้องน้ำของสถานี (WL - z_ref) interpolate (IDW p=2, 2 สถานีใกล้สุด)
         # แล้วบวกกับท้องน้ำของแต่ละ cell (zbed = ค่าต่ำสุดของ DEM 30 ม. ใน cell) -> ผิวน้ำลาดตามท้องน้ำจริง
         # ตลิ่ง: น้ำล้นขึ้นที่ราบได้เมื่อความลึกเกินความสูงตลิ่ง (min_bank - z_ref) ที่ interpolate แบบเดียวกัน
@@ -142,7 +246,7 @@ def main(site, only=None, hecras=False):
             D_ = np.array([np.maximum(stage[k] - m["stations"][k]["z_ref"], 0) for k in ks])     # [K, T] ความลึกเหนือท้องน้ำ
             BH = np.array([by[m["stations"][k]["code"]]["bank"] - m["stations"][k]["z_ref"] for k in ks])
             zb_r = zbed[rr, cc].astype(np.float32)
-            stage_fn = lambda hr: zb_r + (D_[nn2, min(hr, T - 1)] * wk).sum(1)
+            stage_fn = lambda hr: zb_r + (D_[nn2, min(hr, T_tot - 1)] * wk).sum(1)
             river_bank = zb_r + (BH[nn2] * wk).sum(1)
         else:
             stage_fn = lambda hr: {}; river_bank = None
@@ -153,22 +257,25 @@ def main(site, only=None, hecras=False):
         for rv in rivers or []:
             if rv.get("q_obs") is None or not rv.get("qmax") or not (reach_codes.get(rv["key"], set()) & codes):
                 continue
-            tt_ = np.array(rv["t"]); qf = np.array([np.nan if v is None else v for v in rv["q_fc"]], float)
+            tt_, qf = _q_ext(rv, ext_h)
             qf = np.where(np.isnan(qf), rv["q_obs"], qf)
-            fl.append(np.maximum(np.interp(times[i0:i1 + 1], tt_, qf) - rv["qmax"], 0))
+            fl.append(np.maximum(np.interp(tx[i0:], tt_, qf) - rv["qmax"], 0))
         ovs = np.sum(fl, axis=0) if fl else None
-        overflow_fn = (lambda hr: float(ovs[min(hr, T - 1)])) if ovs is not None else None
+        overflow_fn = (lambda hr: float(ovs[min(hr, T_tot - 1)])) if ovs is not None else None
         snaps = (i_now - i0, i_now - i0 + 24, i_now - i0 + 48, T - 1)
         tt = time.time()
-        r = model2d.run2d(dom, m, rain_eff, T - 1, stage_fn, h0=h0, snap_hours=snaps, river_bank=river_bank, overflow_fn=overflow_fn)
+        has_aoi = "aoi" in dom and m.get("aoi")
+        r = model2d.run2d(dom, m, rain_eff, T_tot - 1, stage_fn, h0=h0, snap_hours=snaps, river_bank=river_bank, overflow_fn=overflow_fn,
+                          dur_from=(i_now - i0) if ext_h else None,
+                          zones=dom["aoi"] if has_aoi else None, n_zones=len(m["aoi"]) if has_aoi else 0)
         # max over the forecast window only
         names = {}
         for lab, hr in zip(("now", "p24", "p48", "p72"), snaps):
             if hr in r["snaps"]:
                 fn = f"{hid_}_{lab}.png"; model2d.depth_png(os.path.join(out_dir, fn), r["snaps"][hr], dom["river"]); names[lab] = fn
-        hm = np.maximum.reduce([r["snaps"][h] for h in snaps if h in r["snaps"]] + [r["h"]])
+        hm = np.maximum.reduce([r["snaps"][h] for h in snaps if h in r["snaps"]] + ([] if ext_h else [r["h"]]))
         model2d.depth_png(os.path.join(out_dir, f"{hid_}_max72.png"), hm, dom["river"]); names["max72"] = f"{hid_}_max72.png"
-        ser = r["series"]; dx = m["dx"]
+        ser = [x for x in r["series"] if x[0] <= T - 1]; dx = m["dx"]
         riv = dom["river"] >= 0
         def km2(h, thr=0.10):
             return round(float(((h >= thr) & dom["valid"] & ~riv).sum() * dx * dx / 1e6), 2)
@@ -188,6 +295,24 @@ def main(site, only=None, hecras=False):
                       "series": [[int(times[i0] + 3600 * s_[0]), s_[1], round(s_[2], 3)] for s_ in ser],
                       "hex": hsel, "hexcov": hcov, "hexfrac_now": fnow, "hexfrac_max72": fmax,
                       "stations": [s["code"] for s in m["stations"]], "runtime_s": round(time.time() - tt, 1)}
+        if has_aoi:
+            live[hid_]["aoi"] = f"data/static/hotspots/{m['aoi_file']}" if m.get("aoi_file") else f"data/static/hotspots/{hid_}_aoi.geojson"
+            if m.get("contrib"):
+                live[hid_]["contrib"] = f"data/static/hotspots/{m['contrib']}"
+            zs_now = r["zseries"][i_now - i0] if len(r["zseries"]) > i_now - i0 else None
+            if zs_now is not None:
+                live[hid_]["aoi_now_km2"] = [round(float(v), 2) for v in zs_now]
+        if ext_h:
+            h_now = i_now - i0
+            rem = np.where(r["last_wet"] >= 0, r["last_wet"] - h_now, -1.0)
+            sig = (r["h"] >= 0) & dom["valid"].astype(bool) & ~riv
+            if has_aoi:
+                pd, sig = _ponding(m, dom, r, T, h_now, T_tot, status, dx)
+                pd["t_run"] = int(times[i_now]); pd["runtime_s"] = live[hid_]["runtime_s"]
+                live[hid_]["ponding"] = pd
+            still = (r["h"] >= 0.10) & sig
+            model2d.remain_png(os.path.join(out_dir, f"{hid_}_rem.png"), np.where(sig, rem, -1), still, dom["river"])
+            names["rem"] = f"{hid_}_rem.png"
         print(hid_, live[hid_]["area_now_km2"], live[hid_]["area_max72_km2"], live[hid_]["runtime_s"], "s", flush=True)
         if hecras:
             hd = os.path.join(site, "hecras", hid_); os.makedirs(hd, exist_ok=True)
@@ -208,6 +333,12 @@ def main(site, only=None, hecras=False):
             old = json.load(open(lp, encoding="utf8"))
         except Exception:  # noqa
             old = {}
+    for k, v in live.items():                       # รอบสั้น (ไม่ --long) เก็บผลระยะเวลาท่วมขังรอบก่อนไว้
+        o = old.get(k) or {}
+        if "ponding" not in v and "ponding" in o:
+            v["ponding"] = o["ponding"]
+            if "rem" in (o.get("png") or {}):
+                v["png"]["rem"] = o["png"]["rem"]
     old.update(live)
     old["_generated"] = datetime.now(TZ).isoformat(timespec="seconds")
     json.dump(old, open(lp, "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
@@ -218,5 +349,6 @@ def main(site, only=None, hecras=False):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--site", default="."); ap.add_argument("--only", nargs="*"); ap.add_argument("--hecras", action="store_true")
+    ap.add_argument("--long", action="store_true", help="รันต่อหลังพยากรณ์เพื่อหาระยะเวลาท่วมขัง (โดเมนที่มี long_h)")
     a = ap.parse_args()
-    main(a.site, a.only, a.hecras)
+    main(a.site, a.only, a.hecras, a.long)

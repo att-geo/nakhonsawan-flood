@@ -11,3 +11,9 @@ hecras/*/*.ovr
 
 # โฟลเดอร์ clone ว่างที่ซ้อนอยู่ (ไม่ใช่ส่วนของโปรเจกต์)
 nakhonsawan-flood/
+
+# ชุดทดสอบพารามิเตอร์ของแบบจำลองเหตุการณ์ — เก็บเฉพาะชุดที่ใช้ (b10c400h) + สรุป
+hecras/thatako_ev/runs/*
+!hecras/thatako_ev/runs/*_b10c400h*
+!hecras/thatako_ev/runs/_cmp_status.json
+!hecras/thatako_ev/runs/events_vs_s1.png

@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
 """
-สอบเทียบพารามิเตอร์โมเดล hex network (v3) กับ (ก) ผลแบบจำลอง 2D ของจุดวิกฤต และ (ข) พื้นที่น้ำท่วมจากดาวเทียม GISTDA
+สอบเทียบพารามิเตอร์โมเดล hex network (v3) กับ (ก) ผลแบบจำลอง 2D ของจุดวิกฤต และ (ข) พื้นที่น้ำท่วมจากดาวเทียม
+(GISTDA ถ้ามี API key และ/หรือ Sentinel-1 ที่แปลเองด้วย pipeline/s1_obs.py — ไม่ต้องใช้ key)
 
   python pipeline/run_update.py --site .        # สร้าง sim inputs (temp) + hex_state + เก็บ GISTDA รายวันลง data/live/gistda_obs.json
   python pipeline/run_hotspots.py --site .      # ผล 2D (พื้นที่ท่วมรายชั่วโมง + สัดส่วนท่วมราย hex)
+  python pipeline/s1_obs.py --site .            # (ไม่บังคับ) แปลน้ำท่วมจาก Sentinel-1 → data/live/s1_obs.json
   python pipeline/calibrate.py --site .         # grid search -> data/static/calibration.json
 
 ตัวแปรที่ปรับ: t_mult (เวลาระบาย), weir_c (สัมประสิทธิ์การล้นข้ามจุดล้น), dcap_mult (ความจุแอ่ง)
@@ -24,6 +26,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import model  # noqa: E402
 import gistda_obs as gobs  # noqa: E402
+import s1_obs  # noqa: E402  (อ่าน/เขียน JSON อย่างเดียว — ไม่ต้องมี rasterio ตอนสอบเทียบ)
 
 TZ = timezone(timedelta(hours=7))
 GRID = {"t_mult": [0.5, 1.0, 2.0], "weir_c": [0.3, 1.0, 3.0], "dcap_mult": [0.7, 1.0, 1.3]}
@@ -31,7 +34,7 @@ SIM_CACHE = os.path.join(tempfile.gettempdir(), "nsflood_sim_inputs.npz")
 KEYS = ("t_mult", "weir_c", "dcap_mult")
 
 
-def main(site, grid=None, use_gistda=True):
+def main(site, grid=None, use_gistda=True, use_s1=True):
     t0 = time.time()
     st = os.path.join(site, "data", "static"); lv = os.path.join(site, "data", "live")
     J = lambda d, n: json.load(open(os.path.join(d, n), encoding="utf8"))
@@ -41,9 +44,14 @@ def main(site, grid=None, use_gistda=True):
     z = np.load(SIM_CACHE)
     P, ext, inj, bw = z["P"], z["ext"], z["inj"], z["bw"]; i_now = int(z["i_now"]); times = z["times"]
     prm = model.Params(p); hk = p.get("hex_km2", 1.0)
-    arch = gobs.load(site) if use_gistda else {"records": []}
-    if arch.get("n_hex") not in (None, prm.n):                       # ผัง hex เปลี่ยน → ระเบียนเก่าใช้ไม่ได้
-        arch = {"records": []}
+    recs = []                                                        # ระเบียนภาพดาวเทียม: GISTDA (รายวัน) + Sentinel-1 (ตามรอบโคจร, ไม่ต้องใช้ key)
+    for use, loader in ((use_gistda, gobs.load), (use_s1, s1_obs.load)):
+        if not use: continue
+        a = loader(site)
+        if a.get("n_hex") in (None, prm.n):                          # ผัง hex เปลี่ยน → ระเบียนเก่าใช้ไม่ได้
+            recs += a.get("records", [])
+    arch = {"records": recs}
+    n_src = {k: sum(1 for r in recs if r.get("src", "gistda") == k) for k in ("gistda", "s1")}
     base = {}
     old = os.path.join(st, "calibration.json")
     if os.path.exists(old):
@@ -98,17 +106,23 @@ def main(site, grid=None, use_gistda=True):
     edge = [k for k in grid if len(grid[k]) > 1 and bk[k] in (min(grid[k]), max(grid[k]))]
     g = r_best["gistda"]
     out.update({"score": best["score"], "previous_score": r_cur["score"], "baseline_score": r_dflt["score"],
-                "scoring": "2d+gistda" if g else "2d", "hotspots": list(hs.keys()),
+                "scoring": ("2d+" + "+".join(sorted(g["by_src"]))) if g else "2d", "hotspots": list(hs.keys()),
                 "at_grid_edge": edge,                                                 # พารามิเตอร์ที่ค่าดีสุดอยู่ขอบ grid → รอบหน้าจะขยับต่อ
                 "calibrated_at": datetime.now(TZ).isoformat(timespec="seconds"),
                 "method": ("grid search เทียบ (1) พื้นที่ท่วม ≥10 ซม. รายชั่วโมงและสัดส่วนท่วมราย hex กับแบบจำลอง 2D (local inertial 120 ม.)"
-                           + (" และ (2) พื้นที่น้ำท่วมจากดาวเทียม GISTDA ราย hex (CSI + ความคลาดเคลื่อนพื้นที่รวม, สูงสุดของโมเดลในหน้าต่าง 48–72 ชม.)" if g else ""))})
+                           + (" และ (2) พื้นที่น้ำท่วมจากดาวเทียมราย hex — " + " + ".join(
+                               {"gistda": "GISTDA (สูงสุดของโมเดลในหน้าต่าง 48–72 ชม.)",
+                                "s1": f"Sentinel-1 SAR (สูงสุดของโมเดลใน {s1_obs.WIN_H} ชม. ก่อนเวลาถ่าย)"}[k] for k in sorted(g["by_src"]))
+                              + " (CSI + ความคลาดเคลื่อนพื้นที่รวม)" if g else ""))})
     if g:
         out["gistda_eval"] = {**g, "weight": round(gobs.G_WEIGHT * min(g["n"], 3) / 3.0, 2), "score_2d_only": r_best["score_2d"],
                               "current_params": r_cur["gistda"], "default_params": r_dflt["gistda"], "records": r_best["gistda_rows"],
-                              "note": "ภาพดาวเทียมรายวัน ไม่ใช่รายชั่วโมง และอาจไม่ครอบคลุมทั้งจังหวัด — ใช้เทียบค่าสูงสุดในหน้าต่างเวลา; ระเบียนที่ท่วมรวม < 5 กม² ไม่นับ"}
+                              "records_available": n_src,
+                              "note": "ภาพดาวเทียมไม่ใช่รายชั่วโมงและอาจไม่ครอบคลุมทั้งจังหวัด — ใช้เทียบค่าสูงสุดในหน้าต่างเวลา; ระเบียนที่ท่วมรวม < 5 กม² ไม่นับ; "
+                                      "Sentinel-1 ไม่นับ hex ในเมือง/ที่สูง/นอกภาพ (nocov) เพราะ SAR มองน้ำท่วมตรงนั้นไม่เห็นหรือเห็นผิด"}
     else:
-        out["gistda_eval"] = {"n": 0, "note": f"ยังไม่มีระเบียน GISTDA ที่ใช้ได้ (มี {len(arch.get('records', []))} ระเบียน; ต้องท่วมรวม ≥ {gobs.MIN_KM2:g} กม² และอยู่ในช่วง sim 30 วัน)"}
+        out["gistda_eval"] = {"n": 0, "records_available": n_src,
+                              "note": f"ยังไม่มีระเบียนภาพดาวเทียมที่ใช้ได้ (GISTDA {n_src['gistda']}, Sentinel-1 {n_src['s1']} ระเบียน; ต้องท่วมรวม ≥ {gobs.MIN_KM2:g} กม² และอยู่ในช่วง sim 30 วัน)"}
     out["grid"] = results
     json.dump(out, open(old, "w", encoding="utf8"), ensure_ascii=False, indent=1)
     print("best", bk, "score", best["score"], "baseline", out["baseline_score"], "scoring", out["scoring"],
@@ -118,5 +132,6 @@ def main(site, grid=None, use_gistda=True):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(); ap.add_argument("--site", default="."); ap.add_argument("--no-gistda", action="store_true")
+    ap.add_argument("--no-s1", action="store_true", help="ไม่ใช้ระเบียน Sentinel-1 (data/live/s1_obs.json)")
     a = ap.parse_args()
-    main(a.site, use_gistda=not a.no_gistda)
+    main(a.site, use_gistda=not a.no_gistda, use_s1=not a.no_s1)

@@ -66,11 +66,13 @@
         <div id="rainList" class="list"></div>
       </section>
       <section data-pane="hot" class="pane">
-        <p class="note">แบบจำลองน้ำท่วม 2 มิติ (rain-on-grid, local inertial) ความละเอียด 120 ม. เริ่มจากสภาพน้ำของโมเดล hex เมื่อ 48 ชม.ก่อน และใช้ระดับน้ำสถานีเป็นขอบเขตแม่น้ำ</p>
+        <p class="note">แบบจำลองน้ำท่วม 2 มิติ (rain-on-grid, local inertial) ความละเอียด 120 ม. (แอ่งท่าตะโก 180 ม.) เริ่มจากสภาพน้ำของโมเดล hex เมื่อ 48 ชม.ก่อน และใช้ระดับน้ำสถานีเป็นขอบเขตแม่น้ำ</p>
         <div class="seg" id="hotSeg">
           <button data-snap="now" class="active">ตอนนี้</button><button data-snap="p24">+24 ชม.</button>
           <button data-snap="p48">+48 ชม.</button><button data-snap="p72">+72 ชม.</button><button data-snap="max72">สูงสุด 72 ชม.</button>
+          <button data-snap="rem" title="เวลาที่คาดว่าน้ำขังลึก ≥ 10 ซม. จะลด (จำลองต่อหลังพยากรณ์ ไม่มีฝนเพิ่ม)">คาดลดใน</button>
         </div>
+        <div id="pondBox"></div>
         <div id="hotList"></div>
         <h3>โครงสร้างระบายน้ำที่ใช้ในแบบจำลอง</h3>
         <div id="drainInfo" class="note"></div>

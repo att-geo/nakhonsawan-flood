@@ -13,6 +13,10 @@ on:
         description: "สอบเทียบโมเดล hex กับผล 2D แล้ว commit calibration.json"
         type: boolean
         default: false
+      s1:
+        description: "แปลน้ำท่วมจาก Sentinel-1 รอบนี้ (ไม่ต้องใช้ GISTDA key)"
+        type: boolean
+        default: true
   push:
     branches: [main]
 
@@ -52,10 +56,11 @@ jobs:
         continue-on-error: true
         run: |
           base="${{ steps.pages.outputs.base_url }}"
-          for f in meta status frames stations districts series upstream gauges_hist rain_cache gistda_obs; do
+          for f in meta status frames stations districts series upstream gauges_hist rain_cache gistda_obs s1_obs s1_status; do
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
           curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true
+          curl -sfL "$base/data/live/s1_flood.geojson" -o data/live/s1_flood.geojson.prev && mv data/live/s1_flood.geojson.prev data/live/s1_flood.geojson || true
           for f in hex_state hotspots_live; do
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
@@ -78,14 +83,30 @@ jobs:
           GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
         run: python pipeline/run_update.py --site .
 
-      - name: 2D hotspot model (ทุก 6 ชม. หรือสั่งเอง)
+      - name: Sentinel-1 flood extent (วันละ 2 ครั้ง หรือสั่งเอง — ไม่ต้องใช้ API key)
+        continue-on-error: true
+        timeout-minutes: 20
+        run: |
+          H=$(date -u +%H)
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.s1 }}" = "true" ]; } || \
+             { [ "${{ github.event_name }}" = "schedule" ] && { [ "$H" = "03" ] || [ "$H" = "15" ]; }; }; then
+            pip install -q scipy rasterio pyproj pystac-client planetary-computer
+            if [ -s data/live/s1_obs.json ] || [ -s data/static/s1_obs.json ]; then D=14; else D=45; fi
+            python pipeline/s1_obs.py --site . --days $D
+          else
+            echo "skip Sentinel-1 this hour (ใช้ผลรอบก่อนที่กู้คืนมา)"
+          fi
+
+      - name: 2D hotspot model (ทุก 6 ชม. หรือสั่งเอง ; ระยะเวลาท่วมขังแอ่งท่าตะโก วันละครั้ง 00 UTC)
         if: steps.model.outcome == 'success'
         continue-on-error: true
+        timeout-minutes: 40
         run: |
           H=$(date -u +%H)
           if { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.hotspots }}" = "true" ]; } || \
              { [ "${{ github.event_name }}" = "schedule" ] && [ $((10#$H % 6)) -eq 0 ]; }; then
-            python pipeline/run_hotspots.py --site .
+            LONG=""; [ "$H" = "00" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ] && LONG="--long"
+            python pipeline/run_hotspots.py --site . $LONG
           else
             echo "skip 2D this hour (ใช้ผลรอบก่อนที่กู้คืนมา)"
           fi
@@ -100,7 +121,9 @@ jobs:
             python pipeline/calibrate.py --site . && python pipeline/run_update.py --site .
             git config user.name "flood-bot"; git config user.email "flood-bot@users.noreply.github.com"
             cp data/live/gistda_obs.json data/static/gistda_obs.json 2>/dev/null || true
-            git add data/static/calibration.json data/static/gistda_obs.json && git commit -m "chore: recalibrate hex model [skip ci]" && git push || true
+            cp data/live/s1_obs.json data/static/s1_obs.json 2>/dev/null || true
+            git add data/static/calibration.json; git add data/static/gistda_obs.json data/static/s1_obs.json 2>/dev/null
+            git commit -m "chore: recalibrate hex model [skip ci]" && git push || true
           fi
 
       - name: Keep schedule alive (GitHub ปิด cron ถ้า repo ไม่มี commit 60 วัน)
