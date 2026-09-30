@@ -61,6 +61,7 @@ jobs:
           done
           curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true
           curl -sfL "$base/data/live/s1_flood.geojson" -o data/live/s1_flood.geojson.prev && mv data/live/s1_flood.geojson.prev data/live/s1_flood.geojson || true
+          cp data/live/hotspots_live.json /tmp/hotspots_live.repo.json 2>/dev/null || true
           for f in hex_state hotspots_live; do
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
@@ -69,7 +70,16 @@ jobs:
           import json, sys, urllib.request, os
           base = sys.argv[1]; p = "data/live/hotspots_live.json"
           if os.path.exists(p):
-              for k, v in json.load(open(p, encoding="utf8")).items():
+              live = json.load(open(p, encoding="utf8"))
+              # โดเมนที่มีใน repo แต่ยังไม่มีบน Pages (เช่น เพิ่งเพิ่มท่าตะโก) — เก็บผลที่ commit ไว้ ไม่ให้หายตอนกู้คืน
+              repo = {}
+              try:
+                  repo = json.load(open("/tmp/hotspots_live.repo.json", encoding="utf8"))
+                  for k, v in repo.items():
+                      if not k.startswith("_") and k not in live: live[k] = v; print("keep repo domain", k)
+                  json.dump(live, open(p, "w", encoding="utf8"), ensure_ascii=False)
+              except Exception as e: print("no repo copy", e)
+              for k, v in live.items():
                   if k.startswith("_"): continue
                   for fn in v.get("png", {}).values():
                       try: urllib.request.urlretrieve(f"{base}/data/live/hotspots/{fn}", f"data/live/hotspots/{fn}")

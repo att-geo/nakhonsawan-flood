@@ -35,6 +35,7 @@
       <button role="tab" data-tab="stations">ระดับน้ำ</button>
       <button role="tab" data-tab="rain">ฝน</button>
       <button role="tab" data-tab="hot">2D จุดวิกฤต</button>
+      <button role="tab" data-tab="thatako">ท่าตะโก</button>
       <button role="tab" data-tab="windy">Windy</button>
       <button role="tab" data-tab="about">วิธีการ</button>
     </nav>
@@ -72,12 +73,23 @@
           <button data-snap="p48">+48 ชม.</button><button data-snap="p72">+72 ชม.</button><button data-snap="max72">สูงสุด 72 ชม.</button>
           <button data-snap="rem" title="เวลาที่คาดว่าน้ำขังลึก ≥ 10 ซม. จะลด (จำลองต่อหลังพยากรณ์ ไม่มีฝนเพิ่ม)">คาดลดใน</button>
         </div>
-        <div id="pondBox"></div>
+        <p class="note">ผลวิเคราะห์แอ่งท่าตะโก (ระยะเวลาท่วมขังรายตำบล · น้ำท่วมจริงจาก Sentinel-1 · เหตุการณ์ 2564/65/68 · สถานการณ์สมมติ) อยู่ในแท็บ <a href="#" id="toThatako">ท่าตะโก</a></p>
         <div id="hotList"></div>
         <h3>โครงสร้างระบายน้ำที่ใช้ในแบบจำลอง</h3>
         <div id="drainInfo" class="note"></div>
         <h3>การสอบเทียบแบบจำลอง</h3>
         <div id="calibInfo" class="note"></div>
+      </section>
+      <section data-pane="thatako" class="pane">
+        <p class="note">แอ่งท่าตะโก + ต.พระนอน/ทับกฤช (1,072 กม², พื้นที่รับน้ำ 3,741 กม²) — ท่วมซ้ำซากและขังนาน 2–3 เดือนรอบบึงบอระเพ็ด ; ผลจากแบบจำลอง 2D เทียบภาพเรดาร์ Sentinel-1</p>
+        <h3>ชั้นแผนที่</h3>
+        <div class="seg" id="tkSeg" style="flex-wrap:wrap">
+          <button data-tk="s1" class="active">ท่วมซ้ำ S1 2560–68</button>
+          <button data-tk="ev:2021">เหตุการณ์ 64</button><button data-tk="ev:2022">65</button><button data-tk="ev:2025">68</button>
+          <button data-tk="scn:over_r250:rem">สถานการณ์ E</button><button data-tk="off">ปิด</button>
+        </div>
+        <div id="tkLegend" class="note" style="margin:6px 0"></div>
+        <div id="pondBox"></div>
       </section>
       <section data-pane="windy" class="pane">
         <div class="seg" id="windySeg">

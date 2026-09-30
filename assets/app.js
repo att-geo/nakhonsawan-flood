@@ -414,50 +414,69 @@
   function renderPond(h, ids) {
     const box = $("#pondBox"); if (!box) return;
     const withAoi = ids.filter(k => h[k].aoi);
-    withAoi.forEach(k => { if (S.aoiLayers[k]) return; S.aoiLayers[k] = "loading";
-      jOpt(h[k].aoi, "s4").then(g => { if (!g) return;
-        S.aoiLayers[k] = L.geoJSON(g, { renderer, style: f => ({ color: f.properties.in_existing ? "#64748b" : "#7c3aed", weight: 1.6, fill: false, dashArray: f.properties.in_existing ? "4 3" : null }),
-          onEachFeature: (f, l) => l.bindTooltip(`ต.${f.properties.name} (อ.${f.properties.district})`, { sticky: true }) });
-        layerCtl.addOverlay(S.aoiLayers[k], `ตำบลที่ศึกษา: ${h[k].name}`);
-        if ($('.tabs button[data-tab="hot"]').classList.contains("active")) S.aoiLayers[k].addTo(map); }); });
     const P = withAoi.map(k => [k, h[k].ponding]).filter(([, p]) => p && p.tambon && p.tambon[0] && "patch_km2" in p.tambon[0]);
     const remTxt = (v, any) => !any ? "–" : v == null ? "> 14 วัน" : v === 0 ? "ลดแล้ว" : durTxt(v);
     const remBar = r => { const tot = r.rem_km2.reduce((a, b) => a + b, 0); return tot > 0 ? `<div style="display:flex;height:7px;border-radius:3px;overflow:hidden;background:var(--line);margin-top:2px">${r.rem_km2.map((v, i) => `<span style="width:${v / tot * 100}%;background:${REM_COL[i]}"></span>`).join("")}</div>` : ""; };
     const leg = `<div class="note" style="margin:4px 0">${REM_COL.map((c, i) => `<span class="sw" style="background:${c}"></span>${REM_LBL[i]}`).join(" ")}</div>`;
-    box.innerHTML = (S.hotSnap === "rem" ? leg : "") + P.map(([k, p]) => { const t = p.total_new || {};
+    box.innerHTML = s1Html() + evHtml() + scnHtml() + P.map(([k, p]) => { const t = p.total_new || {};
       const tr = p.tambon.map(r => `<tr${r.in_existing ? ' style="opacity:.65"' : ""}><td>${r.name}<div class="note">${r.district}${r.in_existing ? " · มีในโดเมนชุมแสงแล้ว" : ""}</div></td>
           <td>${nf(r.wet_now_km2, 1)}</td><td>${nf(r.patch_km2, 1)}</td><td>${nf(r.depth_p95_m, 2)}</td><td>${nf(r.wet_ge7d_km2, 1)}</td>
           <td>${remTxt(r.rem_med_h, r.patch_km2 > 0)} / ${remTxt(r.rem_p90_h, r.patch_km2 > 0)}${remBar(r)}</td><td>${r.hex_rem_med_h == null ? "–" : durTxt(r.hex_rem_med_h)}</td></tr>`).join("");
-      return `<h3>ระยะเวลาท่วมขังรายตำบล — ${h[k].name}</h3>
+      return `<h3>สถานการณ์ปัจจุบัน: ระยะเวลาท่วมขังรายตำบล — ${h[k].name}</h3>${leg}
         <p class="note">จำลองต่อหลังพยากรณ์ 72 ชม. อีก ${Math.round((p.sim_h_after_now - p.fc_h) / 24)} วัน <b>โดยสมมติว่าไม่มีฝนเพิ่ม</b> และระดับน้ำแม่น้ำลดตามอัตราน้ำลดของสถานี ·
           นับเฉพาะผืนน้ำ ≥ ${nf(p.min_patch_km2, 2)} กม² ไม่รวมแหล่งน้ำถาวร · รันเมื่อ ${new Date(p.t_run * 1000).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" })} ·
           ${p.tambon.filter(r => !r.in_existing).length} ตำบลที่เพิ่มใหม่: ท่วมตอนนี้ <b>${nf(t.wet_now_km2, 1)}</b> กม² · ขัง ≥ 7 วัน <b>${nf(t.wet_ge7d_km2, 1)}</b> กม² ·
           คาดลด (มัธยฐาน/P90) <b>${remTxt(t.rem_med_h, t.patch_km2 > 0)} / ${remTxt(t.rem_p90_h, t.patch_km2 > 0)}</b></p>
         <div style="overflow-x:auto"><table class="tbl"><thead><tr><th>ตำบล</th><th>ท่วมตอนนี้ กม²</th><th>ผืนท่วม กม²</th><th>ลึก P95 ม.</th><th>ขัง ≥7 วัน กม²</th><th>คาดลด มัธยฐาน/P90</th><th>โมเดล hex คาดลด</th></tr></thead>
-        <tbody>${tr}</tbody></table></div>`; }).join("") + s1Html() + evHtml() + scnHtml();
-    $$("#pondBox [data-scn]").forEach(b => b.onclick = () => { const [key, lay] = b.dataset.scn.split(":"); showScn(key, lay); });
-    $$("#pondBox [data-s1]").forEach(b => b.onclick = () => showS1());
-    $$("#pondBox [data-ev]").forEach(b => b.onclick = () => showEv(b.dataset.ev));
+        <tbody>${tr}</tbody></table></div>`; }).join("");
+    $$("#pondBox [data-scn]").forEach(b => b.onclick = () => { const [key, lay] = b.dataset.scn.split(":"); tkShow(`scn:${key}:${lay}`); });
+    $$("#pondBox [data-s1]").forEach(b => b.onclick = () => tkShow("s1"));
+    $$("#pondBox [data-ev]").forEach(b => b.onclick = () => tkShow(`ev:${b.dataset.ev}`));
+  }
+  // ---------------------------------------------------------------- แท็บท่าตะโก: ขอบเขตตำบล + ชั้นผลวิเคราะห์ (ไม่ขึ้นกับผล 2D รายชั่วโมง)
+  S.tkLayer = null; S.tkAoi = null; S.tkSel = "s1";
+  function tkRefresh() { const h = S.hot || {}; renderPond(h, Object.keys(h).filter(k => !k.startsWith("_"))); tkLegend(); }
+  jOpt("data/static/hotspots/thatako_aoi.geojson", "s4").then(g => { if (!g) return;
+    S.tkAoi = L.geoJSON(g, { renderer, style: f => ({ color: f.properties.in_existing ? "#64748b" : "#7c3aed", weight: 1.6, fill: false, dashArray: f.properties.in_existing ? "4 3" : null }),
+      onEachFeature: (f, l) => l.bindTooltip(`ต.${f.properties.name} (อ.${f.properties.district})`, { sticky: true }) });
+    layerCtl.addOverlay(S.tkAoi, "ท่าตะโก: ขอบเขตตำบลที่ศึกษา");
+    if ($('.tabs button[data-tab="thatako"]').classList.contains("active")) S.tkAoi.addTo(map); });
+  const TK_LEG = {
+    s1: [["#bfdbfe", "1–2 ปี"], ["#60a5fa", "3–4"], ["#2563eb", "5–6"], ["#1e3a8a", "7–9 ปี"], ["#94a3b8", "แหล่งน้ำถาวร"]],
+    ev: [["#2563eb", "ท่วม ≥ 30 วัน ตรงกัน"], ["#ea580c", "จริงแต่จำลองไม่ถึง"], ["#facc15", "จำลองเกิน"], ["#94a3b8", "แหล่งน้ำถาวร"]],
+    scn: [["#fde047", "ลดใน 1–3 วัน"], ["#fb923c", "3–7 วัน"], ["#dc2626", "7–14 วัน"], ["#7f1d1d", "> 14 วัน"]] };
+  const TK_TTL = { s1: "จำนวนปีที่ท่วมต่อเนื่อง ≥ 30 วัน (Sentinel-1 ปี 2560–2568)", ev: y => `ปี ${+y + 543}: ท่วม ≥ 30 วัน แบบจำลอง vs ภาพเรดาร์วันเดียวกัน`,
+    scn: "สถานการณ์ E (ฝน 250 มม./5 วัน + น้ำล้นตลิ่ง): เวลาน้ำลดนับจากฝนเริ่มตก" };
+  function tkLegend() {
+    const [t, a] = S.tkSel.split(":"), el = $("#tkLegend"); if (!el) return;
+    el.innerHTML = t === "off" ? "" : `<b>${t === "ev" ? TK_TTL.ev(a) : TK_TTL[t]}</b><br>${TK_LEG[t].map(([c, l]) => `<span class="sw" style="background:${c}"></span>${l}`).join(" ")}`;
+    $$("#tkSeg button").forEach(b => b.classList.toggle("active", b.dataset.tk === S.tkSel || (t === "scn" && b.dataset.tk.startsWith("scn") && b.dataset.tk === S.tkSel)));
+  }
+  function tkShow(sel, fit = true) {
+    S.tkSel = sel; const [t, a, b] = sel.split(":");
+    if (S.tkLayer) { map.removeLayer(S.tkLayer); layerCtl.removeLayer(S.tkLayer); S.tkLayer = null; }
+    let url, bounds, label;
+    if (t === "s1" && S.s1h) { url = `data/static/hotspots/${S.s1h.png}`; bounds = S.s1h.bounds; label = "ท่าตะโก: น้ำท่วมซ้ำ Sentinel-1 2560–2568"; }
+    if (t === "ev" && S.ev?.years?.[a]?.png) { url = `data/static/hotspots/ev/${S.ev.years[a].png}`; bounds = S.ev._bounds; label = `ท่าตะโก: เหตุการณ์ปี ${+a + 543} จำลอง vs ดาวเทียม`; }
+    if (t === "scn" && S.scn?.[a]) { url = `data/static/hotspots/scn/${S.scn[a].png[b || "rem"]}`; bounds = S.scn._bounds; label = `ท่าตะโก: สถานการณ์ ${a} (${b === "max" ? "ความลึกสูงสุด" : "เวลาน้ำลด"})`; }
+    if (url) { S.tkLayer = L.imageOverlay(url, bounds, { opacity: .85, interactive: false }).addTo(map); layerCtl.addOverlay(S.tkLayer, label); if (fit) map.fitBounds(bounds); }
+    if (S.tkAoi && !map.hasLayer(S.tkAoi)) S.tkAoi.addTo(map);
+    const tab = $('.tabs button[data-tab="thatako"]'); if (!tab.classList.contains("active")) tab.click();
+    tkLegend();
+  }
+  $$("#tkSeg button").forEach(b => b.onclick = () => tkShow(b.dataset.tk));
+  $("#toThatako").onclick = e => { e.preventDefault(); $('.tabs button[data-tab="thatako"]').click(); };
+  function showThatako() {
+    if (S.tkAoi && !map.hasLayer(S.tkAoi)) S.tkAoi.addTo(map);
+    if (!S.tkLayer && S.tkSel !== "off") tkShow(S.tkSel, false);
+    map.fitBounds([[15.38, 100.12], [15.99, 100.70]]);
   }
   // ---------------------------------------------------------------- สถานการณ์สมมติ (ไม่ขึ้นกับฝนวันนี้): ฝน × ระดับน้ำแม่น้ำ
   S.scn = null; S.scnLayer = null;
-  jOpt("data/static/hotspots/thatako_scenarios.json", "s5").then(j => { S.scn = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
-  function showScn(key, lay) {
-    const x = S.scn?.[key]; if (!x) return;
-    if (S.scnLayer) { map.removeLayer(S.scnLayer); layerCtl.removeLayer(S.scnLayer); }
-    S.scnLayer = L.imageOverlay(`data/static/hotspots/scn/${x.png[lay]}`, S.scn._bounds, { opacity: .9, interactive: false }).addTo(map);
-    layerCtl.addOverlay(S.scnLayer, `สถานการณ์: ${key} (${lay === "rem" ? "เวลาน้ำลด" : "ความลึกสูงสุด"})`);
-    map.fitBounds(S.scn._bounds);
-  }
+  jOpt("data/static/hotspots/thatako_scenarios.json", "s5").then(j => { S.scn = j; tkRefresh(); });
   // ---------------------------------------------------------------- น้ำท่วมในอดีตจาก Sentinel-1 (2560–2568) เทียบกับแบบจำลอง
   S.s1h = null; S.s1Layer = null;
-  jOpt("data/static/hotspots/thatako_s1_history.json", "s6").then(j => { S.s1h = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
-  function showS1() {
-    const j = S.s1h; if (!j) return;
-    if (S.s1Layer) { map.removeLayer(S.s1Layer); layerCtl.removeLayer(S.s1Layer); }
-    S.s1Layer = L.imageOverlay(`data/static/hotspots/${j.png}`, j.bounds, { opacity: .85, interactive: false }).addTo(map);
-    layerCtl.addOverlay(S.s1Layer, "Sentinel-1: จำนวนปีที่ท่วม ≥ 30 วัน (2560–2568)"); map.fitBounds(j.bounds);
-  }
+  jOpt("data/static/hotspots/thatako_s1_history.json", "s6").then(j => { S.s1h = j; tkRefresh(); });
   function s1Html() {
     const j = S.s1h; if (!j) return "";
     const be = y => String(+y + 543).slice(2);
@@ -476,13 +495,7 @@
   }
   // ---------------------------------------------------------------- จำลองเหตุการณ์จริง 2564/2565/2568 เทียบ Sentinel-1 (event_2d.py → events_web.py)
   S.ev = null; S.evLayer = null;
-  jOpt("data/static/hotspots/thatako_events.json", "s7").then(j => { S.ev = j; if (S.hot) renderPond(S.hot, Object.keys(S.hot).filter(k => !k.startsWith("_"))); });
-  function showEv(y) {
-    const j = S.ev, e = j?.years?.[y]; if (!e?.png) return;
-    if (S.evLayer) { map.removeLayer(S.evLayer); layerCtl.removeLayer(S.evLayer); }
-    S.evLayer = L.imageOverlay(`data/static/hotspots/ev/${e.png}`, j._bounds, { opacity: .85, interactive: false }).addTo(map);
-    layerCtl.addOverlay(S.evLayer, `เหตุการณ์ปี ${+y + 543}: ท่วม ≥ 30 วัน จำลอง vs ดาวเทียม`); map.fitBounds(j._bounds);
-  }
+  jOpt("data/static/hotspots/thatako_events.json", "s7").then(j => { S.ev = j; tkRefresh(); });
   function evChart(e) {
     const W = 300, H = 120, pl = 30, pb = 16, d = e.daily, n = d.length;
     const t0 = Date.parse(e.start), t1 = Date.parse(e.end), mx = Math.max(100, ...d.map(r => Math.max(r.obs_km2, r.mod_km2)));
@@ -599,6 +612,7 @@
     if (b.dataset.tab === "windy") setWindy(S.windyOv || "rain");
     if (b.dataset.tab === "upstream") showUpstreamMap();
     if (b.dataset.tab === "hot") showHotMap();
+    if (b.dataset.tab === "thatako") showThatako();
   });
   function setWindy(ov) {
     S.windyOv = ov;
