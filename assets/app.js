@@ -1127,6 +1127,8 @@
     if (b.dataset.tab === "hot") showHotMap();
     if (b.dataset.tab === "thatako") showThatako();
     if (b.dataset.tab === "hist") setMapMode("hist", true);
+    if (innerWidth <= 760) { const ex = $("#expert"), t = $("#expert .tabs"); if (ex.scrollTop > t.offsetTop - ex.offsetTop) ex.scrollTop = t.offsetTop - ex.offsetTop; }   // มือถือ: เปลี่ยนแท็บแล้วกลับไปต้นแท็บ
+    b.scrollIntoView({ block: "nearest", inline: "nearest" });
   });
   function setWindy(ov) {
     S.windyOv = ov;
