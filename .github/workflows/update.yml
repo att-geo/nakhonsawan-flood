@@ -17,6 +17,10 @@ on:
         description: "แปลน้ำท่วมจาก Sentinel-1 รอบนี้ (ไม่ต้องใช้ GISTDA key)"
         type: boolean
         default: true
+      province:
+        description: "พยากรณ์ 2D ทั้งจังหวัด 72 ชม. รอบนี้ (~10 นาที)"
+        type: boolean
+        default: false
   push:
     branches: [main]
 
@@ -32,7 +36,7 @@ concurrency:
 jobs:
   update-and-deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     environment:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
@@ -56,7 +60,7 @@ jobs:
         continue-on-error: true
         run: |
           base="${{ steps.pages.outputs.base_url }}"
-          for f in meta status frames stations districts series upstream gauges_hist rain_cache gistda_obs s1_obs s1_status; do
+          for f in meta status frames stations districts series upstream gauges_hist rain_cache gistda_obs s1_obs s1_status prov_state; do
             curl -sfL "$base/data/live/$f.json" -o "data/live/$f.json.prev" && mv "data/live/$f.json.prev" "data/live/$f.json" || true
           done
           curl -sfL "$base/data/live/gistda_flood.geojson" -o data/live/gistda_flood.geojson || true
@@ -119,6 +123,20 @@ jobs:
             python pipeline/run_hotspots.py --site . $LONG
           else
             echo "skip 2D this hour (ใช้ผลรอบก่อนที่กู้คืนมา)"
+          fi
+
+      - name: 2D ทั้งจังหวัด พยากรณ์ 72 ชม. (วันละ 4 ครั้ง 04/10/16/22 UTC หรือสั่งเอง ; ~10 นาที)
+        if: steps.model.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 25
+        run: |
+          H=$(date -u +%H)
+          if { [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.province }}" = "true" ]; } || \
+             { [ "${{ github.event_name }}" = "schedule" ] && { [ "$H" = "04" ] || [ "$H" = "10" ] || [ "$H" = "16" ] || [ "$H" = "22" ]; }; }; then
+            pip install -q scipy
+            python pipeline/run_province.py --site .
+          else
+            echo "skip province 2D this hour (ใช้ผลรอบก่อนที่กู้คืนมา)"
           fi
 
       - name: Calibrate hex model against 2D (สัปดาห์ละครั้ง หรือสั่งเอง)

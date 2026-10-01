@@ -40,7 +40,7 @@ def main(site, grid=None, use_gistda=True, use_s1=True):
     J = lambda d, n: json.load(open(os.path.join(d, n), encoding="utf8"))
     p = J(st, "params.json"); netj = J(st, "network.json")
     assets = J(st, "drainage_assets.json") if os.path.exists(os.path.join(st, "drainage_assets.json")) else None
-    hs = {k: v for k, v in J(lv, "hotspots_live.json").items() if not k.startswith("_")}
+    hs = {k: v for k, v in J(lv, "hotspots_live.json").items() if not k.startswith("_") and not (isinstance(v, dict) and v.get("no_calib"))}   # ไม่ใช้โดเมนทั้งจังหวัด (prov) ในการสอบเทียบ hex
     z = np.load(SIM_CACHE)
     P, ext, inj, bw = z["P"], z["ext"], z["inj"], z["bw"]; i_now = int(z["i_now"]); times = z["times"]
     prm = model.Params(p); hk = p.get("hex_km2", 1.0)

@@ -127,10 +127,11 @@ class LazyRain:
 
 
 def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=True, tag="", hid="thatako_ev",
-        s1_dir=None, n_mult=1.0, hold_level=None, in_cap=None, bueng=False, bueng_init=None, log=print):
+        s1_dir=None, n_mult=1.0, hold_level=None, in_cap=None, bueng=False, bueng_init=None, forcing=None, out_dir=None, log=print):
+    """forcing: dict รูปแบบเดียวกับ forcing/<ปี>.json (ใช้แทนไฟล์ เช่น สถานการณ์สมมติ) ; out_dir: โฟลเดอร์ผลแทน hecras/<hid>/runs"""
     hs = os.path.join(site, "data", "static", "hotspots")
     d = np.load(os.path.join(hs, f"{hid}.npz")); dom = {k: d[k] for k in d.files if k != "meta"}; m = json.loads(str(d["meta"]))
-    F = json.load(open(os.path.join(site, "hecras", hid, "forcing", f"{year}.json")))
+    F = forcing if forcing is not None else json.load(open(os.path.join(site, "hecras", hid, "forcing", f"{year}.json")))
     ny, nx = dom["dem"].shape
     t0 = datetime.fromisoformat(f"{year}-{start}T00:00:00+00:00").timestamp()
     t1 = datetime.fromisoformat(f"{year}-{end}T00:00:00+00:00").timestamp()
@@ -260,7 +261,7 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
                       river_bank=bank, overflow_fn=ofn, dur_from=0, zones=dom["aoi"], n_zones=len(m["aoi"]),
                       hold_mask=hold, hold_level=hold_level, river_grp=grp)
     rt = round(time.time() - tt, 1)
-    od = os.path.join(site, "hecras", hid, "runs"); os.makedirs(od, exist_ok=True)
+    od = out_dir or os.path.join(site, "hecras", hid, "runs"); os.makedirs(od, exist_ok=True)
     name = f"{year}{tag}"
     np.savez_compressed(os.path.join(od, name + ".npz"), hmax=r["hmax"].astype(np.float16), wet_h=r["wet_h"].astype(np.float16),
                         last_wet=r["last_wet"].astype(np.float32), h_end=r["h"].astype(np.float16), zseries=r["zseries"],
@@ -268,7 +269,10 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
                         snaps=np.stack([r["snaps"].get(h, np.zeros((ny, nx), np.float32)) for h in snaps.values()]).astype(np.float16)
                         if snaps else np.zeros((0, ny, nx), np.float16))
     r["snaps"][0] = r["hmax"]
-    pd, _ = _ponding(m, dom, r, 1, 0, T, None, m["dx"])
+    domp = dom
+    if bueng and hold is not None:                 # ผืนบึงบอระเพ็ด = แหล่งน้ำถาวร (ไม่นับเป็นน้ำท่วมขัง) — _ponding ตัด cell ที่ n = 0.03
+        domp = dict(dom); domp["n"] = np.where(lake, np.float32(0.03), dom["n"]).astype(np.float32)
+    pd, _ = _ponding(m, domp, r, 1, 0, T, None, m["dx"])
     summ = {"year": year, "start": f"{year}-{start}", "end": f"{year}-{end}", "bank_off": bank_off, "loss_mmh": loss, "north": north, "n_mult": n_mult, "hold_level": hold_level, "in_cap_m3s": in_cap, "bueng_bathy": bool(bueng), "bueng_init": (bueng_init if bueng_init is not None else BUENG_INIT.get(year)) if bueng else None,
             "n_edge_cells": n_edge, "stations": use, "runtime_s": rt, "ponding": pd,
             "wl_max": {c: round(float(WL[c].max()), 2) for c in use}, "snap_dates": list(snaps.keys())}

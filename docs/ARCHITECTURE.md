@@ -437,6 +437,41 @@ python pipeline/event_compare_prov.py --site . --s1 ../s1_prov --run hecras/prov
 python pipeline/events_prov_web.py --site . --tag _c3
 ```
 
+## 4j. สถานการณ์สมมติและพยากรณ์ 72 ชม. ทั้งจังหวัด (`pipeline/scenario_prov.py`, `run_province.py`, 1 ต.ค. 2569)
+
+ใช้โดเมน `prov_ev` (300 ม., 411 × 646) และชุดพารามิเตอร์ c5 ของ 4i: `bank_off={nan:-1.5, ping:-1.5, cpy:-2.0, skg:-1.0}`, `in_cap={nan:500, ping:1000, cpy:1000, skg:300}`,
+`loss=0.08`, `n_mult=2`, `hold_level=24.0`, บึงบอระเพ็ดปรับความจุ (`burn_boraphet`)
+
+### สถานการณ์สมมติ (`scenario_prov.py`)
+
+- ฝนสม่ำเสมอทั้งโดเมน (รูปแบบรายชั่วโมงของ `scenario_2d.rain_pattern`) ; ระดับน้ำทุกสถานีที่มีตลิ่ง: `low` = 40% ของความลึกตลิ่ง, `bank` = ตลิ่ง −0.3 ม. 10 วันแล้วลดใน 7 วัน, `over` = ตลิ่ง +0.5 ม. 7 วันแล้วลดใน 7 วัน
+- บึงเริ่ม +24.00 ม. ; จำลอง 21 วัน ; ผืนบึง (ตั้ง n = 0.03 ให้ `_ponding` ข้าม) และแหล่งน้ำถาวรไม่นับ ; `left_end_km2` = ยังท่วมเมื่อจบการจำลอง (วันที่ 21)
+- `event_2d.run()` รับ `forcing=` และ `out_dir=` แล้ว (ไม่ต้องเขียนไฟล์ forcing) ; ผลดิบ `hecras/prov_ev/scenarios/2030scn_<X>.npz` (ไม่ commit)
+
+| สถานการณ์ | ฝน · แม่น้ำ | ท่วมสูงสุด | ท่วมเป็นผืน | ขัง ≥7 วัน | ยังไม่ลดวันที่ 21 (กม²) |
+|---|---|---|---|---|---|
+| A | 150 มม./3 วัน · ปกติ | 287 | 51 | 29 | 39 |
+| C | 250 มม./5 วัน · ปกติ | 549 | 223 | 148 | 140 |
+| D | 250 มม./5 วัน · เต็มตลิ่ง 10 วัน | 1,058 | 686 | 532 | 274 |
+| E | 250 มม./5 วัน · ล้นตลิ่ง +0.5 ม. 7 วัน | 1,181 | 828 | 608 | 294 |
+
+ใช้เวลา ~25–40 นาที/สถานการณ์ (2 แกน) ; ผลเว็บ `data/static/prov_scenarios.json` + `data/static/scn_prov/prov_scn_<X>_{max,rem}.png`
+(`--post` สรุปใหม่จาก npz ที่มีอยู่) — เว็บ: โหมดง่าย การ์ด “ถ้าเกิดพายุใหญ่ น้ำจะขังนานที่ไหน?” (C/E เป็นไร่) ; โหมดละเอียด แท็บท่วมซ้ำ ตาราง A/C/D/E + ปุ่มลึกสุด/น้ำลด
+
+### พยากรณ์ 72 ชม. ทั้งจังหวัด (`run_province.py`)
+
+- ข้อมูลจากรอบรายชั่วโมง: `rain_cache.json` (ย้อนหลัง 48 ชม. + พยากรณ์ 72 ชม.), ระดับน้ำ/recession สถานี (`stations`, `upstream`, `gauges_hist`), ความลึกเริ่มต้นจาก `hex_state.json` ;
+  stage IDW เฉพาะสถานีในลำน้ำเดียวกัน ; ขอบเหนือใช้ Y.5 (ประมาณจาก N.67 ถ้าไม่มี)
+- ระดับบึงเริ่มต้นจาก `data/live/prov_state.json` ของรอบก่อน (ไม่เกิน 5 วัน) มิฉะนั้นค่าตามเดือน (`BUENG_MONTH`)
+- ผล: `data/live/hotspots/prov_{now,p24,p48,p72,max72}.png` + รายการ `prov` ใน `hotspots_live.json` (`no_calib: true` — `calibrate.py` ข้าม) แสดงในแท็บ 2D “ทั้งจังหวัด (300 ม.)”
+- **เวลารันจริง 9 นาที 15 วินาที (555 วินาที) บนเครื่อง 2 แกน** เท่ากับ GitHub runner มาตรฐาน — workflow รันวันละ 4 ครั้ง 04 / 10 / 16 / 22 UTC (แยกจาก 2D จุดวิกฤต 00/06/12/18 และ Sentinel-1 03/15) หรือสั่งเอง `province = true` ; job timeout 60 นาที, step timeout 25 นาที
+- ตัวอย่าง (ข้อมูล 28 ก.ย. 2569 20:00 น.): ท่วมขังตอนนี้ 160 กม² · สูงสุดใน 72 ชม. 243 กม² ; `PROV_DEBUG=1` เก็บ npz ไว้ตรวจ
+
+```
+python pipeline/scenario_prov.py --site . [--only C E] [--post]
+python pipeline/run_province.py --site .
+```
+
 ## 5. สัญญาข้อมูล (data contract)
 
 - `params.json` — array ยาว N เรียงตาม `hid`: `lon, lat, amph, elev, hand, hand_p10, handM_p10, slope, cn, sink_mm, f_low, f_crop, f_built, f_water, facc_km2, down`
@@ -450,6 +485,7 @@ python pipeline/events_prov_web.py --site . --tag _c3
   `hotspots_live.json` + `hotspots/*.png` ; static: `network.json`, `drainage_assets.json`, `drainage.geojson`, `drainage_assets_user.csv`,
   `calibration.json`, `hotspots/*.npz`, `params.json` เพิ่ม `z_p0..z_p100`, `canal_km`
 - `districts.json`, `stations.json`, `series.json`, `meta.json` (เวลา, สถานะแหล่งข้อมูล, สรุป)
+- static (4j): `prov_scenarios.json` — `{A|C|D|E: {label, rain, rain_days, river, days, png{max,rem}, total{patch_km2, peak_km2, ge7d_km2, left_end_km2}, tambon[], district{}}, _bounds, _params, _note}` ; live: `prov_state.json` (ระดับบึงรอบล่าสุด), `hotspots_live.json["prov"]`
 - static (4h): `province_tambon.geojson` (130 ตำบล), `s1_province.json` — `years{y:{n_img, prov_ge30d_km2, prov_ge60d_km2, peak, ts}}`, `district[]`, `tambon[]{code,name,district,ge30d_ge3y_km2,ge60d_ge3y_km2,mean_years_ge30d,ge60d_km2_by_year,…}`, `bounds`, `png`
 
 ## 6. แนวทางยกระดับ

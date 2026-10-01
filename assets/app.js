@@ -154,6 +154,7 @@
     else if (m === "hist") { h = histLegend(); }
     else if (m === "dur") { h = "<b>ระยะเวลาท่วมรวม (ผ่านมา+คาดการณ์)</b>" + ["1–12 ชม.", "12–24 ชม.", "1–3 วัน", "3–7 วัน", "> 7 วัน"].map((t, k) => row(DUR_COL[k + 1], t)).join(""); }
     else { h = `<b>${{ p24: "ฝน 24 ชม.", p7d: "ฝน 7 วัน", f72: "ฝนพยากรณ์ 72 ชม." }[m]} (มม.)</b>` + ["1–10", "10–35", "35–90", "90–150", "> 150"].map((t, k) => row(RAIN_COL[k + 1], t)).join(""); }
+    h += pscnLegend();
     if (S.pevLayer && map.hasLayer(S.pevLayer)) h += `<b style='margin-top:6px'>ท่วม ≥ 30 วัน ปี ${+S.pevY + 543}: จำลอง vs ดาวเทียม</b>` +
       [["#2563eb", "ตรงกัน"], ["#ea580c", "จริงแต่จำลองไม่ถึง"], ["#facc15", "จำลองเกิน"]].map(([c, t]) => row(c, t)).join("");
     if (S.suscMeta && map.hasLayer(S.susc)) h += "<b style='margin-top:6px'>พื้นที่ลุ่มต่ำ (HAND)</b>" + S.suscMeta.classes.map((t, k) => row(S.suscMeta.colors[k], t)).join("");
@@ -598,6 +599,7 @@
       <div class="seg"><button id="histOn" class="${S.mode === "hist" ? "active" : ""}">แสดงบนแผนที่</button><button id="histOff">ซ่อน</button></div>
       <h3>พื้นที่ท่วมนานรายปี</h3>${histChartSvg(j)}
       <div id="pevBox"></div>
+      <div id="pscnBox"></div>
       <h3>รายอำเภอ</h3>
       <table class="tbl"><thead><tr><th>อำเภอ</th><th>≥30 วัน ≥3 ปี<br><small>กม²</small></th><th>≥60 วัน ≥3 ปี<br><small>กม²</small></th><th>ปีหนักสุด<br><small>≥60 วัน กม²</small></th></tr></thead>
       <tbody>${j.district.map(d => `<tr data-a="${d.district}"><td>${d.district}</td><td>${nf(d.ge30d_ge3y_km2, 1)}</td><td>${nf(d.ge60d_ge3y_km2, 1)}</td><td>${worst(d)}</td></tr>`).join("")}</tbody></table>
@@ -612,7 +614,79 @@
     $("#histAll").onclick = () => { S.histAll = !S.histAll; renderHist(); };
     $$("#histBox tr[data-a]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomAmphoe(r.dataset.a); });
     $$("#histBox tr[data-k]").forEach(r => r.onclick = () => { setMapMode("hist"); zoomTam(+r.dataset.k); });
-    renderPev();
+    renderPev(); renderPscn();
+  }
+  // ---------------------------------------------------------------- สถานการณ์สมมติทั้งจังหวัด (scenario_prov.py)
+  S.pscn = null; S.pscnLayer = null; S.pscnSel = null;
+  jOpt("data/static/prov_scenarios.json", "s10").then(j => { S.pscn = j; renderPscn(); if (S.meta && S.status) renderSimple(); });
+  const PSCN_KEYS = ["A", "C", "D", "E"];
+  function pscnShow(sel) {
+    if (S.pscnLayer) { map.removeLayer(S.pscnLayer); layerCtl.removeLayer(S.pscnLayer); S.pscnLayer = null; }
+    S.pscnSel = sel;
+    if (sel) {
+      const [k, kind] = sel.split(":"), x = S.pscn?.[k];
+      if (x) {
+        if (S.mode === "hist") setMapMode("class");
+        S.pscnLayer = L.imageOverlay(`data/static/${x.png[kind]}`, S.pscn._bounds, { opacity: .85, interactive: false }).addTo(map);
+        layerCtl.addOverlay(S.pscnLayer, `สถานการณ์ ${k}: ${kind === "max" ? "ความลึกสูงสุด" : "เวลาน้ำลด"}`);
+        map.fitBounds(S.pscn._bounds);
+      }
+    }
+    renderPscn(); renderLegend();
+  }
+  function pscnLegend() {
+    if (!S.pscnLayer || !S.pscnSel) return "";
+    const kind = S.pscnSel.split(":")[1], row = (c, t) => `<div class="row"><span class="sw" style="background:${c}"></span>${t}</div>`;
+    return kind === "max" ? `<b style='margin-top:6px'>สถานการณ์ ${S.pscnSel[0]}: ความลึกสูงสุด</b>` + CLS_LBL.slice(1).map((t, k) => row(CLS_COL[k + 1], t)).join("")
+      : `<b style='margin-top:6px'>สถานการณ์ ${S.pscnSel[0]}: น้ำลดหลังฝนเริ่มตก</b>` + REM_LBL.map((t, k) => row(REM_COL[k], t)).join("");
+  }
+  function renderPscn() {
+    const box = $("#pscnBox"), j = S.pscn; if (!box || !j) return;
+    const ks = PSCN_KEYS.filter(k => j[k]); if (!ks.length) { box.innerHTML = ""; return; }
+    const sel = S.pscnSel ? S.pscnSel.split(":")[0] : null;
+    const rows = ks.map(k => { const t = j[k].total; return `<tr data-k="${k}"${k === sel ? ' style="background:var(--chip)"' : ""}><td><b>${k}</b><div class="note">${j[k].label}</div></td>
+      <td>${nf(t.patch_km2)}</td><td>${nf(t.ge7d_km2)}</td><td>${nf(t.left_end_km2)}</td></tr>`; }).join("");
+    let det = "";
+    if (sel && j[sel]) {
+      const x = j[sel];
+      const ds = Object.entries(x.district).filter(([, g]) => g.patch_km2 >= 1).sort((a, b) => b[1].ge7d_km2 - a[1].ge7d_km2);
+      const ts = x.tambon.filter(t => (t.wet_ge7d_km2 || 0) >= 1).sort((a, b) => b.wet_ge7d_km2 - a.wet_ge7d_km2).slice(0, 20);
+      det = `<table class="tbl" style="margin-top:6px"><thead><tr><th>อำเภอ (สถานการณ์ ${sel})</th><th>ท่วม<br><small>กม²</small></th><th>ขัง ≥7 วัน</th><th>ยังไม่ลด<br><small>วันที่ 21</small></th></tr></thead>
+        <tbody>${ds.map(([d, g]) => `<tr data-a="${d}"><td>${d}</td><td>${nf(g.patch_km2)}</td><td>${nf(g.ge7d_km2)}</td><td>${nf(g.left_end_km2)}</td></tr>`).join("")}</tbody></table>
+        <table class="tbl" style="margin-top:6px"><thead><tr><th>ตำบล</th><th>ท่วม<br><small>กม²</small></th><th>ขัง ≥7 วัน</th><th>ลึก P95<br><small>ม.</small></th></tr></thead>
+        <tbody>${ts.map(t => `<tr><td>${t.name}<div class="note">${t.district}</div></td><td>${nf(t.patch_km2, 1)}</td><td>${nf(t.wet_ge7d_km2, 1)}</td><td>${nf(t.depth_p95_m, 1)}</td></tr>`).join("")}</tbody></table>
+        <p class="note">20 ตำบลที่น้ำขัง ≥ 7 วันมากที่สุด</p>`;
+    }
+    box.innerHTML = `<h3>สถานการณ์สมมติทั้งจังหวัด</h3><p class="note">${j._note} · แบบจำลอง 2D ทั้งจังหวัด 300 ม. ชุดพารามิเตอร์เดียวกับที่สอบเทียบกับดาวเทียม</p>
+      <table class="tbl"><thead><tr><th>สถานการณ์</th><th>ท่วม<br><small>กม²</small></th><th>ขัง ≥7 วัน</th><th>ยังไม่ลด<br><small>วันที่ 21</small></th></tr></thead><tbody>${rows}</tbody></table>
+      <div class="seg" style="margin-top:6px;flex-wrap:wrap">${ks.map(k => `<button data-ps="${k}:max" class="${S.pscnSel === k + ":max" ? "active" : ""}">${k} ลึกสุด</button><button data-ps="${k}:rem" class="${S.pscnSel === k + ":rem" ? "active" : ""}">${k} น้ำลด</button>`).join("")}<button data-ps="">ซ่อน</button></div>${det}`;
+    $$("#pscnBox [data-ps]").forEach(b => b.onclick = () => pscnShow(b.dataset.ps || null));
+    $$("#pscnBox tr[data-k]").forEach(r => r.onclick = () => pscnShow(r.dataset.k + ":rem"));
+    $$("#pscnBox tr[data-a]").forEach(r => r.onclick = () => zoomAmphoe(r.dataset.a));
+  }
+  // การ์ดภาษาง่าย: ถ้าเกิดพายุใหญ่ น้ำจะขังนานที่ไหน
+  function pscnSimpleHtml() {
+    const j = S.pscn, e = j?.E, c = j?.C; if (!e) return "";
+    const top = e.tambon.filter(t => (t.wet_ge7d_km2 || 0) * 625 >= 300).sort((a, b) => b.wet_ge7d_km2 - a.wet_ge7d_km2).slice(0, 8);
+    const ds = Object.entries(e.district).filter(([, g]) => g.ge7d_km2 * 625 >= 300).sort((a, b) => b[1].ge7d_km2 - a[1].ge7d_km2);
+    const dm = ds.length ? ds[0][1].ge7d_km2 : 1;
+    return `<div class="s-card"><h2>ถ้าเกิดพายุใหญ่ น้ำจะขังนานที่ไหน? <span class="note" style="font-weight:400">สถานการณ์สมมติ</span></h2>
+      <p style="margin:0">สมมติว่า <b>ฝนตกหนักมาก 250 มม. ใน 5 วัน</b> ${c ? `ถ้าแม่น้ำยังปกติ น้ำจะขังนานเกิน 1 สัปดาห์ราว <b>${raiTxt(c.total.ge7d_km2)}</b> ;` : ""}
+        ถ้า<b>แม่น้ำล้นตลิ่งด้วย</b> จะเพิ่มเป็นราว <b>${raiTxt(e.total.ge7d_km2)}</b> และหลัง 3 สัปดาห์ยังไม่ลดราว ${raiTxt(e.total.left_end_km2)}</p>
+      <div class="h-sub">อำเภอที่น้ำจะขังนานเกิน 1 สัปดาห์ (กรณีแม่น้ำล้นตลิ่ง)</div>
+      <div class="h-bars">${ds.map(([d, g]) => `<div class="h-yr" data-a="${d}"><span>อ.${d}</span><i class="big" style="width:${g.ge7d_km2 / dm * 100}%;background:#b91c1c"></i><em>${raiTxt(g.ge7d_km2)}</em></div>`).join("")}</div>
+      <div class="h-sub">ตำบลที่ควรเตรียมตัวมากที่สุด</div>
+      <div class="h-tams">${top.map(t => `<button class="w3" data-tn="${t.name}|${t.district}">ต.${t.name}<small>อ.${t.district} · ${raiTxt(t.wet_ge7d_km2)}</small></button>`).join("")}</div>
+      <div class="s-row" style="margin-top:10px"><button class="s-btn ghost" id="pscnMap">ดูแผนที่สถานการณ์นี้</button></div>
+      <p class="s-hint">เป็น <b>การจำลองล่วงหน้าเพื่อเตรียมตัว</b> ไม่ใช่พยากรณ์ — สถานการณ์จริงขึ้นกับฝนและระดับน้ำจริง ดูส่วนบนของหน้านี้สำหรับวันนี้</p></div>`;
+  }
+  function wirePscnSimple() {
+    const b = $("#pscnMap"); if (b) b.onclick = () => { setView("expert"); $('.tabs button[data-tab="hist"]').click(); setTimeout(() => pscnShow("E:rem"), 300); };
+    $$("#simple [data-tn]").forEach(el => el.onclick = () => {
+      const [n, d] = el.dataset.tn.split("|"); const k = (S.ph?.tambon || []).findIndex(t => t.name === n && t.district === d);
+      setSimpleTime("hist"); if (innerWidth <= 760) $("#panel").classList.add("collapsed");
+      setTimeout(() => { map.invalidateSize(); if (k >= 0) zoomTam(k); }, 260); });
+    $$("#simple .s-card [data-a]").forEach(el => { if (!el.onclick) el.onclick = () => zoomAmphoe(el.dataset.a); });
   }
   // ---------------------------------------------------------------- แบบจำลอง 2D ทั้งจังหวัด เทียบ Sentinel-1 (event_2d.py --hid prov_ev)
   S.pev = null; S.pevLayer = null; S.pevY = null;
@@ -654,6 +728,7 @@
   }
   function setMapMode(m, fit = false) {
     S.mode = m; $("#mode").value = m; histOverlay(m === "hist", fit);
+    if (m === "hist" && S.pscnLayer) { map.removeLayer(S.pscnLayer); layerCtl.removeLayer(S.pscnLayer); S.pscnLayer = null; S.pscnSel = null; }
     if (m === "hist" && S.pevLayer) { map.removeLayer(S.pevLayer); layerCtl.removeLayer(S.pevLayer); S.pevLayer = null; S.pevY = null; }
     styleHex(); renderLegend(); if (S.ph) { const b = $("#histOn"); if (b) { b.classList.toggle("active", m === "hist"); } }
   }
@@ -985,7 +1060,7 @@
       `<div class="s-card"><h2><span class="num">4</span>ฝน</h2><p style="margin:0">24 ชม. ที่ผ่านมา: <b>${rainWord(p24)}</b> (เฉลี่ย ${nf(p24)} มม.)<br>3 วันข้างหน้า: <b>${rainWord(f72)}</b> (เฉลี่ย ${nf(f72)} มม.)</p></div>` +
       `<div class="s-card"><h2><span class="num">5</span>ควรทำอย่างไร</h2><ul class="s-todo">${todo.map(x => `<li>${x}</li>`).join("")}</ul>
         <div class="s-tel"><a href="tel:1784"><b>1784</b>ปภ. สายด่วนนิรภัย</a><a href="tel:1669"><b>1669</b>เจ็บป่วยฉุกเฉิน</a><a href="tel:191"><b>191</b>เหตุด่วนเหตุร้าย</a><a href="tel:1460"><b>1460</b>กรมชลประทาน</a></div></div>` +
-      histSimpleHtml() +
+      histSimpleHtml() + pscnSimpleHtml() +
       `<div class="s-card"><h2>ความลึกบนแผนที่ อ่านอย่างไร</h2><div class="s-depthkey">${[1, 2, 3, 4].map(c => `<div>${person(c)}${DEPTH_WORD[c].replace("ระดับ", "")}<br><span class="note">${DEPTH_CM[c]}</span></div>`).join("")}</div>
         <p class="s-small" style="margin:8px 0 0">สีฟ้าอ่อน = น้ำตื้น · สีน้ำเงินเข้ม = น้ำลึก ; ใช้ปุ่มด้านล่างแผนที่เพื่อดู <b>พรุ่งนี้ / มะรืนนี้ / อีก 3 วัน</b></p></div>` +
       `<p class="s-small">ตัวเลขทั้งหมดเป็น <b>การประมาณจากคอมพิวเตอร์</b> โดยใช้ฝนจริง ระดับน้ำจริงจากสถานี และแผนที่ความสูงพื้นดิน ใช้ดูแนวโน้มเพื่อเตรียมตัว ควรฟังประกาศจากอำเภอ ผู้ใหญ่บ้าน และ ปภ. ประกอบเสมอ · <a href="#" id="toExpert">ดูข้อมูลละเอียด</a></p>`;
@@ -995,7 +1070,7 @@
     on("homeLoc", locateMe); on("homeClr", () => setHome(null));
     on("homeGo", () => { map.setView([p.lat[S.home], p.lon[S.home]], 12); simplePopup(S.home, L.latLng(p.lat[S.home], p.lon[S.home])); });
     on("toTk", e => { e?.preventDefault?.(); setView("expert"); tkShow("s1"); });
-    wireHistSimple();
+    wireHistSimple(); wirePscnSimple();
     on("toExpert", e => { e.preventDefault(); setView("expert"); });
   }
 
