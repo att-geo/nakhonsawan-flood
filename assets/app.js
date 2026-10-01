@@ -634,7 +634,7 @@
     const leg = [["#2563eb", "ตรงกัน"], ["#ea580c", "ท่วมจริงแต่จำลองไม่ถึง"], ["#facc15", "จำลองเกิน"], ["#94a3b8", "แหล่งน้ำถาวร"]]
       .map(([c, t]) => `<span class="sw" style="background:${c}"></span>${t}`).join(" ");
     const sumRow = yy => { const g = j.years[yy].ge30d;
-      return `<tr data-y="${yy}"${yy === y ? ' style="background:var(--chip)"' : ""}><td>${+yy + 543}</td><td>${nf(g.obs_km2)}</td><td>${nf(g.mod_km2)}</td><td>${nf(g.pod, 2)}</td><td>${nf(g.far, 2)}</td><td><b>${nf(g.csi, 2)}</b></td><td>${nf(j.years[yy].daily_csi_mean, 2)}</td></tr>`; };
+      return `<tr data-y="${yy}"${yy === y ? ' style="background:var(--chip)"' : ""}><td>${+yy + 543}${j.years[yy].test_year ? '<div class="note">ทดสอบ</div>' : ""}</td><td>${nf(g.obs_km2)}</td><td>${nf(g.mod_km2)}</td><td>${nf(g.pod, 2)}</td><td>${nf(g.far, 2)}</td><td><b>${nf(g.csi, 2)}</b></td><td>${nf(j.years[yy].daily_csi_mean, 2)}</td></tr>`; };
     const dRows = v ? Object.entries(v.district).filter(([, g]) => g.obs_km2 >= 2 || g.mod_km2 >= 2).sort((a, b) => b[1].obs_km2 - a[1].obs_km2)
       .map(([d, g]) => `<tr data-a="${d}"><td>${d}</td><td>${nf(g.obs_km2)}</td><td>${nf(g.mod_km2)}</td><td>${nf(g.pod, 2)}</td><td>${nf(g.far, 2)}</td><td>${nf(g.csi, 2)}</td></tr>`).join("") : "";
     box.innerHTML = `<h3>แบบจำลอง 2D ทั้งจังหวัด เทียบน้ำท่วมจริง</h3>

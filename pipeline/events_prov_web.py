@@ -8,22 +8,25 @@
 import argparse, json, os, shutil
 
 
-def main(site, runs=None, tag="", years=(2021, 2022, 2025)):
+def main(site, runs=None, tag="", years=(2021, 2022, 2024, 2025)):
+    """tag: ค่าเดียว หรือรายปี เช่น "2021=_c4,2022=_c4,2024=_c5,2025=_c5" """
+    tags = dict(x.split("=") for x in tag.split(",")) if "=" in tag else {}
     runs = runs or os.path.join(site, "hecras", "prov_ev", "runs")
     st = os.path.join(site, "data", "static"); od = os.path.join(st, "ev_prov"); os.makedirs(od, exist_ok=True)
     S = json.load(open(os.path.join(st, "s1_province.json"), encoding="utf8"))
     out = {"bounds": S["bounds"], "years": {}, "tambon": {}, "params": None,
-           "note": "แบบจำลอง 2D ทั้งจังหวัด cell 300 ม. (local inertial) ฝน ERA5 + ระดับน้ำสถานีกรมชลประทาน 11 สถานี ; "
+           "note": "แบบจำลอง 2D ทั้งจังหวัด cell 300 ม. (local inertial) ฝน ERA5 + ระดับน้ำ 12 สถานี (ชป./สสน.) ; ความจุบึงบอระเพ็ดปรับตามข้อมูล ชป. ; ปี 2567 ใช้ทดสอบ (ไม่ได้ใช้ปรับค่า, Y.5 ประมาณจาก N.67) ; "
                    "เทียบภาพเรดาร์ Sentinel-1 วงโคจร 62+172 วันเดียวกัน (น้ำลึก ≥ 0.3 ม.) ; ท่วม ≥ 30 วัน คิดจากภาพชุดเดียวกันทั้งสองฝั่ง"}
     for y in years:
-        base = os.path.join(runs, f"{y}{tag}")
+        base = os.path.join(runs, f"{y}{tags.get(str(y), tag if not tags else '')}")
         if not os.path.exists(base + "_cmp.json"):
             continue
         c = json.load(open(base + "_cmp.json", encoding="utf8")); r = json.load(open(base + ".json", encoding="utf8"))
         png = f"prov_ev_{y}.png"; shutil.copy(base + "_cmp.png", os.path.join(od, png))
-        out["params"] = {k: r.get(k) for k in ("bank_off", "loss_mmh", "n_mult", "hold_level", "in_cap_m3s", "stations")}
+        out["params"] = {k: r.get(k) for k in ("bank_off", "loss_mmh", "n_mult", "hold_level", "in_cap_m3s", "stations", "bueng_bathy")}
         out["years"][str(y)] = {"png": f"ev_prov/{png}", "n_img": c["n_img"], "daily_csi_mean": c["daily_csi_mean"], "ge30d": c["ge30d"],
-                                "district": c["district"], "runtime_s": r.get("runtime_s"),
+                                "district": c["district"], "runtime_s": r.get("runtime_s"), "run": os.path.basename(base),
+                                "bueng_init": r.get("bueng_init"), "test_year": y == 2024,
                                 "images": [[x["key"], x["obs_km2"], x["mod_km2"], x["csi"]] for x in c["images"]]}
         for t in c["tambon"]:
             k = f"{t['name']}|{t['district']}"

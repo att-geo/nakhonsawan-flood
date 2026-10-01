@@ -28,9 +28,9 @@ TZ7 = timezone(timedelta(hours=7))
 USE = ["Y.5", "N.67", "C.2"]                         # สถานีกรมชลประทาน (รายชั่วโมง, สะอาดกว่าโทรมาตร)
 BANK = {"Y.5": 30.15, "N.67": 28.21, "C.2": 25.70}   # ระดับตลิ่ง (ม.รทก.) จาก ThaiWater
 # โดเมนทั้งจังหวัด (prov_ev): สถานีต่อลำน้ำ + กลุ่มสำหรับจำกัดน้ำเข้าทุ่ง (ความจุคลอง/ประตูน้ำ) แยกลำน้ำ
-USE_BY_HID = {"prov_ev": ["P.16", "P.17", "Y.5", "N.67", "C.2", "CPY002", "C.13", "Ct.5A", "Ct.4", "Ct.19", "Ct.2A"]}
+USE_BY_HID = {"prov_ev": ["P.16", "P.17", "PIN005", "Y.5", "N.67", "C.2", "CPY002", "C.13", "Ct.5A", "Ct.4", "Ct.19", "Ct.2A"]}
 GROUPS = ["nan", "ping", "cpy", "skg"]                # น่าน–ยม, ปิง, เจ้าพระยา, แม่วงก์–สะแกกรัง
-GROUP_OF = {"Y.5": "nan", "N.67": "nan", "NAN008": "nan", "P.16": "ping", "P.17": "ping", "C.2": "cpy", "CPY001": "cpy",
+GROUP_OF = {"Y.5": "nan", "N.67": "nan", "NAN008": "nan", "P.16": "ping", "P.17": "ping", "PIN005": "ping", "C.2": "cpy", "CPY001": "cpy",
             "CPY002": "cpy", "C.13": "cpy", "Ct.5A": "skg", "Ct.4": "skg", "Ct.19": "skg", "Ct.2A": "skg"}
 NORTH_LON = (100.10, 100.62)                          # ขอบเหนือที่รับน้ำบ่าจากพิจิตร (ที่ราบยม–น่าน) ด้วยระดับน้ำ Y.5
 
@@ -65,6 +65,37 @@ def s1_snap_hours(t0, T, year, s1_dir):
     return out
 
 
+# ---- บึงบอระเพ็ด: DEM (FABDEM/TanDEM-X) เห็นแค่ผิวน้ำตอนถ่าย (~24–25 ม.) จึงแทบไม่มีความจุใต้ +24 ม. (แบบจำลอง 27 ล้าน ลบ.ม. vs จริง 180)
+# ค่าอ้างอิง ชป. (water.rid.go.th …/O&MQA/66/a/3.5.pdf): ระดับเก็บกักปกติ +24.00 ม. = 180.3 ล้าน ลบ.ม., ต่ำสุด +20.87 ม. = 8.29 ล้าน ลบ.ม. ;
+# 19 ก.ย. 2564: +21.98 ม. = 31.3 ล้าน ลบ.ม. 19,524 ไร่ (ผู้จัดการ) ; พื้นที่–ปริมาตรรายวันปี 2567 จากประมงจังหวัด (A ≈ 125–160 กม² ที่ ~180 ล้าน ลบ.ม.)
+# -> พื้นที่ผิวน้ำ A(h) แบบเส้นตรงเป็นช่วง ; V(20.87) ≈ 4, V(21.98) ≈ 28, V(24.0) ≈ 185 ล้าน ลบ.ม.
+BUENG_A = ((20.0, 0.0), (20.87, 10.0), (21.98, 32.0), (23.0, 75.0), (24.0, 130.0), (24.86, 204.0))  # (ระดับ ม.รทก., พื้นที่ กม²)
+# จุดสุดท้าย: 23 ก.ย. 2568 +24.86 ม. ผิวน้ำ 127,344 ไร่ (ปชส.เขต 4) ≈ พื้นที่บึงเต็ม (ประมง 2567: ~204 กม² เมื่อ > 280 ล้าน ลบ.ม.)
+BUENG_SEED = (15.705, 100.25)                          # จุดในแอ่งบึง (ใช้หาผืนบึงที่เชื่อมกัน)
+BUENG_INIT = {2021: 21.8, 2022: 22.0, 2024: 22.4, 2025: 22.0}   # ระดับบึง 20 ส.ค. (2564 จากข่าว 14–19 ก.ย. ; 2567 จากปริมาตรประมง 18 ส.ค. ; ปีอื่นสมมติ ~ต่ำสุดตาม rule curve)
+
+
+def burn_boraphet(dem, hold, LA, LO, dx, top=25.6, log=print):
+    """ลดระดับ DEM ใน cell ต่ำสุดของผืนบึง ให้ความสัมพันธ์ระดับ–พื้นที่ใต้ +24 ม. ตรงกับ BUENG_A ; คืน (dem ใหม่, mask บึง)"""
+    from scipy import ndimage
+    cand = hold & (dem < top)
+    lab, _ = ndimage.label(cand)
+    i0 = np.unravel_index(np.argmin((LA - BUENG_SEED[0]) ** 2 + (LO - BUENG_SEED[1]) ** 2), dem.shape)
+    k = lab[i0] if lab[i0] else np.bincount(lab[cand]).argmax()
+    lake = lab == k
+    ca = dx * dx / 1e6
+    idx = np.flatnonzero(lake.ravel()); order = idx[np.argsort(dem.ravel()[idx])]
+    a = (np.arange(order.size) + 0.5) * ca                                   # พื้นที่สะสมจากต่ำไปสูง
+    hs = np.array([x[0] for x in BUENG_A]); As = np.array([x[1] for x in BUENG_A])
+    znew = np.where(a <= As[-1], np.interp(a, As, hs), np.maximum(dem.ravel()[order], hs[-1]))   # เกินพื้นที่บึง: ไม่ต่ำกว่าระดับสุดท้าย
+    d2 = dem.copy().ravel(); v0 = float(np.maximum(24.0 - d2[order], 0).sum() * ca)
+    d2[order] = np.minimum(d2[order], znew)
+    d2 = d2.reshape(dem.shape)
+    v1 = float(np.maximum(24.0 - d2[lake], 0).sum() * ca)
+    log(f"  บึงบอระเพ็ด: ผืนบึง {lake.sum() * ca:.0f} กม² ; ความจุใต้ +24 ม. {v0:.0f} -> {v1:.0f} ล้าน ลบ.ม.")
+    return d2.astype(np.float32), lake
+
+
 def poly_mask(features, LA, LO):
     """even-odd point-in-polygon ของจุดกลาง cell"""
     out = np.zeros(LA.shape, bool)
@@ -96,7 +127,7 @@ class LazyRain:
 
 
 def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=True, tag="", hid="thatako_ev",
-        s1_dir=None, n_mult=1.0, hold_level=None, in_cap=None, log=print):
+        s1_dir=None, n_mult=1.0, hold_level=None, in_cap=None, bueng=False, bueng_init=None, log=print):
     hs = os.path.join(site, "data", "static", "hotspots")
     d = np.load(os.path.join(hs, f"{hid}.npz")); dom = {k: d[k] for k in d.files if k != "meta"}; m = json.loads(str(d["meta"]))
     F = json.load(open(os.path.join(site, "hecras", hid, "forcing", f"{year}.json")))
@@ -203,6 +234,16 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
         for fn_ in ("thatako_contrib.geojson", "thatako_aoi.geojson"):   # คงกรอบเดิมแม้โดเมนใหญ่ขึ้น
             fs.append(poly_mask(json.load(open(os.path.join(hs, fn_), encoding="utf8"))["features"], LA, LO))
         hold = (fs[0] | fs[1]) & (dom["river"] < 0)
+    h0 = None
+    if bueng and hold is not None:
+        dem_b, lake = burn_boraphet(dom2["dem"].astype(np.float32), hold, LA, LO, float(m["dx"]), log=log)
+        dom2 = dict(dom2); dom2["dem"] = dem_b
+        if "zbed" in dom2:
+            dom2["zbed"] = np.minimum(dom2["zbed"], dem_b)
+        lv = bueng_init if bueng_init is not None else BUENG_INIT.get(year)
+        if lv is not None:
+            h0 = np.where(lake, np.maximum(lv - dem_b, 0), 0).astype(np.float32)
+            log(f"  ระดับบึงเริ่มต้น +{lv:.2f} ม. = {float(h0.sum() * float(m['dx']) ** 2 / 1e6):.0f} ล้าน ลบ.ม.")
     # ความจุน้ำเข้าทุ่ง: ค่าเดียว (ทั้งโดเมน) หรือ dict รายกลุ่มลำน้ำ {"nan": 400, "ping": 300, ...}
     grp = None; ofn = None
     if isinstance(in_cap, dict):
@@ -215,7 +256,7 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
     elif in_cap:
         ofn = lambda hr: float(in_cap)
     tt = time.time()
-    r = model2d.run2d(dom2, m, rain_eff, T - 1, stage_fn, h0=None, loss_mmh=loss, snap_hours=tuple(snaps.values()),
+    r = model2d.run2d(dom2, m, rain_eff, T - 1, stage_fn, h0=h0, loss_mmh=loss, snap_hours=tuple(snaps.values()),
                       river_bank=bank, overflow_fn=ofn, dur_from=0, zones=dom["aoi"], n_zones=len(m["aoi"]),
                       hold_mask=hold, hold_level=hold_level, river_grp=grp)
     rt = round(time.time() - tt, 1)
@@ -228,7 +269,7 @@ def run(site, year, start="08-20", end="12-15", bank_off=0.0, loss=0.2, north=Tr
                         if snaps else np.zeros((0, ny, nx), np.float16))
     r["snaps"][0] = r["hmax"]
     pd, _ = _ponding(m, dom, r, 1, 0, T, None, m["dx"])
-    summ = {"year": year, "start": f"{year}-{start}", "end": f"{year}-{end}", "bank_off": bank_off, "loss_mmh": loss, "north": north, "n_mult": n_mult, "hold_level": hold_level, "in_cap_m3s": in_cap,
+    summ = {"year": year, "start": f"{year}-{start}", "end": f"{year}-{end}", "bank_off": bank_off, "loss_mmh": loss, "north": north, "n_mult": n_mult, "hold_level": hold_level, "in_cap_m3s": in_cap, "bueng_bathy": bool(bueng), "bueng_init": (bueng_init if bueng_init is not None else BUENG_INIT.get(year)) if bueng else None,
             "n_edge_cells": n_edge, "stations": use, "runtime_s": rt, "ponding": pd,
             "wl_max": {c: round(float(WL[c].max()), 2) for c in use}, "snap_dates": list(snaps.keys())}
     json.dump(summ, open(os.path.join(od, name + ".json"), "w", encoding="utf8"), ensure_ascii=False)
@@ -247,10 +288,12 @@ if __name__ == "__main__":
     ap.add_argument("--in-cap", default=None, help="ปริมาณน้ำเข้าทุ่งจากแม่น้ำรวมสูงสุด (ลบ.ม./วิ) — ความจุคลอง/ประตูน้ำ ; ไม่ใส่ = ไม่จำกัด ; "
                     "รายกลุ่มลำน้ำ: nan=400,ping=300,cpy=200,skg=100")
     ap.add_argument("--hid", default="thatako_ev")
+    ap.add_argument("--bueng", action="store_true", help="ปรับความจุบึงบอระเพ็ดใต้ +24 ม. ตามข้อมูล ชป. + ระดับบึงเริ่มต้นรายปี (BUENG_INIT)")
+    ap.add_argument("--bueng-init", type=float, default=None)
     a = ap.parse_args()
     cap = a.in_cap
     if cap is not None:
         cap = {k: float(v) for k, v in (x.split("=") for x in cap.split(","))} if "=" in cap else float(cap)
     bo = {k: float(v) for k, v in (x.split("=") for x in a.bank_off.split(","))} if "=" in a.bank_off else float(a.bank_off)
     run(a.site, a.year, a.start, a.end, bo, a.loss, not a.no_north, a.tag, hid=a.hid, s1_dir=a.s1_dir, n_mult=a.n_mult,
-        hold_level=a.hold_level, in_cap=cap)
+        hold_level=a.hold_level, in_cap=cap, bueng=a.bueng, bueng_init=a.bueng_init)
