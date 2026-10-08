@@ -129,6 +129,16 @@ Command line: `python pipeline/run_update.py --site .` → `python pipeline/run_
 **เพิ่มข้อมูลโครงสร้างระบายน้ำจริง** (ความจุสถานีสูบ, ประตูระบายน้ำที่ OSM ไม่มี): แก้ `data/static/drainage_assets_user.csv`
 (`type,name,lon,lat,capacity_m3s,note` — type = pump หรือ gate) แล้วรัน tool 1c
 
+## ArcGIS Enterprise Portal (แผนที่หลักอ่านจาก Portal)
+
+ชั้นหลักของเว็บ — geometry hex, สถานการณ์ราย hex (`status`), ขอบเขตอำเภอ, น้ำขังนาน Sentinel-1 ราย hex และขอบเขตตำบล — **อ่านจาก hosted feature layer บน ArcGIS Enterprise Portal**
+(`data/static/portal_items.json`) หน้าตาเว็บเหมือนเดิมทุกอย่าง ; ถ้า Portal ไม่ตอบ หรือข้อมูลบน Portal ไม่ใช่รอบเดียวกับ `meta.json` จะกลับไปใช้ไฟล์ JSON อัตโนมัติ
+(`?src=files` บังคับใช้ไฟล์) ส่วนแถบเวลา, สถานี, ต้นน้ำ, 2D, ภาพ PNG ยังอ่านไฟล์เหมือนเดิม — มุมขวาบนบอก "แผนที่จาก ArcGIS Portal" เมื่อใช้ Portal อยู่
+
+- publish / web map / dashboard (ใน Python ของ ArcGIS Pro, ใช้ active portal): `python pipeline/portal_layers.py --site . --out ../portal_out` → `arcgis/portal_publish.py` (`build_gdb`, `publish`) → `arcgis/portal_webmap.py` (`create`)
+- sync รายชั่วโมง: `pipeline/portal_sync.py` (stdlib) ใน workflow หลังรันโมเดล — ตั้ง secret `PORTAL_USERNAME`, `PORTAL_PASSWORD` (บัญชี built-in ที่เป็นเจ้าของ layer/admin)
+- service ตั้ง capabilities = Query อย่างเดียว (คนทั่วไปแก้ไม่ได้ ; owner/admin ยัง applyEdits ได้) — publish ใหม่ต้องปิด Create/Update/Delete ทุกครั้ง
+
 ## โครงสร้างโฟลเดอร์
 
 ```

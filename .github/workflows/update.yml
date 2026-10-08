@@ -97,6 +97,20 @@ jobs:
           GISTDA_API_KEY: ${{ secrets.GISTDA_API_KEY }}
         run: python pipeline/run_update.py --site .
 
+      - name: Sync สถานการณ์ล่าสุดขึ้น ArcGIS Enterprise Portal (ถ้าตั้ง secret PORTAL_USERNAME/PORTAL_PASSWORD)
+        if: steps.model.outcome == 'success'
+        continue-on-error: true
+        timeout-minutes: 10
+        env:
+          PORTAL_USERNAME: ${{ secrets.PORTAL_USERNAME }}
+          PORTAL_PASSWORD: ${{ secrets.PORTAL_PASSWORD }}
+        run: |
+          if [ -n "$PORTAL_USERNAME" ] && [ -s data/static/portal_items.json ]; then
+            python pipeline/portal_sync.py --site .
+          else
+            echo "skip portal sync (ไม่ได้ตั้ง secret)"
+          fi
+
       - name: Sentinel-1 flood extent (วันละ 2 ครั้ง หรือสั่งเอง — ไม่ต้องใช้ API key)
         continue-on-error: true
         timeout-minutes: 20

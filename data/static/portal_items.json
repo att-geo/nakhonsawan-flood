@@ -1,0 +1,31 @@
+{
+ "portal": "https://aerogis.cdg.co.th/portal",
+ "analysis": {
+  "item": "46882bfd39844ae8baa28f9bd3a3b07e",
+  "url": "https://aerogis.cdg.co.th/chronoshost/rest/services/Hosted/NakhonSawan_Flood_Analysis/FeatureServer",
+  "layers": {
+   "district_events": 0,
+   "district_s1": 1,
+   "district_scn": 2,
+   "hex_s1": 3,
+   "tambon_events": 4,
+   "tambon_s1": 5,
+   "tambon_scn": 6
+  },
+  "tables": {
+   "scn_total": 7,
+   "year_events": 8,
+   "year_s1": 9
+  }
+ },
+ "live": {
+  "item": "15db6244a9494c7a90352c1397a97fe9",
+  "url": "https://aerogis.cdg.co.th/chronoshost/rest/services/Hosted/NakhonSawan_Flood_Live/FeatureServer",
+  "layers": {
+   "district_status": 0,
+   "hex_status": 1
+  }
+ },
+ "webmap": "e678fe5ce96e46f6816d9f608de2b378",
+ "dashboard": "6ce815e2354341d6b680f5d5cf7dd024"
+}

@@ -48,10 +48,83 @@
   const j = (p, v) => fetch(`${p}?v=${v || Date.now()}`, { cache: "no-store" }).then(r => { if (!r.ok) throw new Error(p); return r.json(); });
   const jOpt = (p, v) => j(p, v).catch(() => null);
 
+  // ---------------------------------------------------------------- ArcGIS Enterprise Portal
+  // ชั้นหลักของแผนที่ (hex, สถานการณ์ราย hex, ขอบเขตอำเภอ, น้ำขังนาน S1 ราย hex/ตำบล) อ่านจาก hosted feature layer บน Portal
+  // ถ้า Portal ล่ม / ข้อมูลไม่ตรงรอบเดียวกับ meta.json → กลับไปใช้ไฟล์ JSON เดิมอัตโนมัติ ; ?src=files บังคับใช้ไฟล์
+  // data/static/portal_items.json สร้างโดย arcgis/portal_publish.py, sync รายชั่วโมงโดย pipeline/portal_sync.py
+  const PT = { cfg: null, src: {}, err: null };
+  const ptCfg = new URLSearchParams(location.search).get("src") === "files" ? Promise.resolve(null)
+    : jOpt("data/static/portal_items.json", "p2").then(c => (PT.cfg = c));
+  async function pq(url, params, ms = 30000) {
+    const ctl = new AbortController(), to = setTimeout(() => ctl.abort(), ms);
+    try {
+      const qs = new URLSearchParams({ where: "1=1", returnGeometry: "false", resultRecordCount: "10000", f: "json", ...params });
+      const r = await fetch(`${url}/query?${qs}`, { signal: ctl.signal, credentials: "omit", cache: "no-store" });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const js = await r.json(); if (js.error) throw new Error(js.error.message || "query error");
+      return js;
+    } finally { clearTimeout(to); }
+  }
+  const ptUrl = (grp, name) => { const g = PT.cfg?.[grp]; const id = g?.layers?.[name] ?? g?.tables?.[name]; return g && id != null ? `${g.url}/${id}` : null; };
+  async function ptTry(key, fn) {
+    await ptCfg; if (!PT.cfg) { PT.src[key] = "files"; return null; }
+    try { const v = await fn(); PT.src[key] = v ? "portal" : "files"; return v; }
+    catch (e) { console.warn("Portal →", key, e); PT.err = String(e.message || e); PT.src[key] = "files"; return null; }
+  }
+  const GJ = { returnGeometry: "true", geometryPrecision: "5", outSR: "4326", f: "geojson" };
+  const ptHexGeom = n => ptTry("hex", async () => {
+    const g = await pq(ptUrl("live", "hex_status"), { ...GJ, outFields: "hid", orderByFields: "hid" }, 45000);
+    if (g.features?.length !== n) throw new Error(`hex ${g.features?.length} ≠ ${n}`);
+    g.features.forEach(f => { f.properties = { i: f.properties.hid }; delete f.id; });
+    return g;
+  });
+  const ptDist = () => ptTry("dist", async () => {
+    const g = await pq(ptUrl("live", "district_status"), { ...GJ, outFields: "amphoe" });
+    if (!g.features?.length) throw new Error("no districts");
+    g.features.forEach(f => { f.properties = { shapeName: f.properties.amphoe }; });
+    return g;
+  });
+  const ST_MAP = { d: "depth_cm", c: "cls", s: "src", h: "flooded_h", r: "remain_h", p24: "rain24", p72: "rain72", p7d: "rain7d",
+    f24: "fc24", f72: "fc72", m72: "max72_cm", dm72: "dm72", u72: "river72_cm", ui: "ui", f: "flood_pct", wse: "wse" };
+  const ptStatus = (meta, n) => ptTry("status", async () => {
+    const js = await pq(ptUrl("live", "hex_status"), { outFields: ["hid", "updated", ...Object.values(ST_MAP)].join(","), orderByFields: "hid" }, 45000);
+    const fs = js.features || []; if (fs.length !== n) throw new Error(`status ${fs.length} ≠ ${n}`);
+    const tUp = fs[0].attributes.updated;
+    if (tUp !== meta.now * 1000) throw new Error(`Portal ยังเป็นรอบ ${new Date(tUp).toLocaleString("th-TH", { timeZone: "Asia/Bangkok" })}`);
+    const st = { n };
+    for (const [k, fld] of Object.entries(ST_MAP)) {
+      const a = new Array(n).fill(k === "wse" ? null : 0);
+      for (const { attributes: x } of fs) if (x[fld] != null) a[x.hid] = x[fld];
+      st[k] = a;
+    }
+    return st;
+  });
+  const ptS1Hex = ph => ptTry("s1hex", async () => {
+    const js = await pq(ptUrl("analysis", "hex_s1"), { outFields: "hid,yrs_ge30d,rep_pct,last_year,tam_code", orderByFields: "hid" }, 45000);
+    const fs = js.features || [], n = fs.length; if (!n) throw new Error("no s1 hex");
+    const idx = Object.fromEntries((ph?.tambon || []).map((t, k) => [t.code, k]));
+    const o = { n, n_years: ph?.n_years || 9, years: Object.keys(ph?.years || {}).map(Number), min_frac: 0.1,
+      yrs: new Array(n).fill(0), last: new Array(n).fill(0), rep_pct: new Array(n).fill(0), tam: new Array(n).fill(null) };
+    for (const { attributes: a } of fs) {
+      o.yrs[a.hid] = a.yrs_ge30d || 0; o.rep_pct[a.hid] = a.rep_pct || 0;
+      o.last[a.hid] = a.last_year ? a.last_year - 543 : 0; o.tam[a.hid] = idx[a.tam_code] ?? null;
+    }
+    return o;
+  });
+  const ptTam = ph => ptTry("tam", async () => {
+    const g = await pq(ptUrl("analysis", "tambon_s1"), { ...GJ, outFields: "code,tambon,amphoe", maxAllowableOffset: "0.0003" });
+    const idx = Object.fromEntries((ph?.tambon || []).map((t, k) => [t.code, k]));
+    g.features.forEach(f => { const p = f.properties; f.properties = { k: idx[p.code], name: p.tambon, district: p.amphoe }; });
+    if (!g.features.length || g.features.some(f => f.properties.k == null)) throw new Error("tambon code ไม่ตรง");
+    return g;
+  });
+  const ptOn = () => ["hex", "status"].every(k => PT.src[k] === "portal");
+
   async function loadStatic() {
-    const [hex, params, prov, dist, susc] = await Promise.all([
-      j("data/static/hex.geojson", "s1"), j("data/static/params.json", "s1"),
-      jOpt("data/static/province.geojson", "s1"), jOpt("data/static/districts.geojson", "s1"),
+    const params = await j("data/static/params.json", "s1");
+    const [hex, prov, dist, susc] = await Promise.all([
+      ptHexGeom(params.n).then(g => g || j("data/static/hex.geojson", "s1")),
+      jOpt("data/static/province.geojson", "s1"), ptDist().then(g => g || jOpt("data/static/districts.geojson", "s1")),
       jOpt("data/static/susceptibility.json", "s1")]);
     S.params = params;
     S.hexLayer = L.geoJSON(hex, { renderer, style: () => ({ weight: 0, fillOpacity: 0 }), onEachFeature: (f, l) => l.on("click", e => S.view === "simple" ? simplePopup(f.properties.i, e.latlng) : hexPopup(f.properties.i, e.latlng)) });
@@ -78,7 +151,7 @@
     if (!force && S.meta && meta.generated === S.meta.generated) { setLiveDot(meta); return; }
     const v = encodeURIComponent(meta.generated);
     const [status, frames, stations, districts, series] = await Promise.all([
-      j("data/live/status.json", v), j("data/live/frames.json", v), jOpt("data/live/stations.json", v),
+      ptStatus(meta, S.params.n).then(st => st || j("data/live/status.json", v)), j("data/live/frames.json", v), jOpt("data/live/stations.json", v),
       jOpt("data/live/districts.json", v), jOpt("data/live/series.json", v)]);
     const [upstream, hot] = await Promise.all([jOpt("data/live/upstream.json", v), jOpt("data/live/hotspots_live.json", v)]);
     Object.assign(S, { meta, status, frames, stations, districts, series, upstream, hot });
@@ -117,7 +190,7 @@
   function setLiveDot(meta) {
     const age = (Date.now() - new Date(meta.generated).getTime()) / 60000;
     const d = $("#liveDot"); d.className = "dot " + (age < 150 ? "live" : "stale");
-    $("#updated").textContent = `อัปเดต ${new Date(meta.generated).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" })} · ${age < 60 ? Math.round(age) + " นาทีที่แล้ว" : Math.round(age / 60) + " ชม.ที่แล้ว"}`;
+    $("#updated").textContent = `อัปเดต ${new Date(meta.generated).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" })} · ${age < 60 ? Math.round(age) + " นาทีที่แล้ว" : Math.round(age / 60) + " ชม.ที่แล้ว"}${ptOn() ? " · แผนที่จาก ArcGIS Portal" : ""}`;
   }
 
   // ---------------------------------------------------------------- render
@@ -488,13 +561,13 @@
   const beY = y => +y + 543;
   const HIST_WORD = y => y >= 6 ? "เกือบทุกปี" : y >= 3 ? "บ่อย" : y >= 1 ? "บางปี" : "";
   const HIST_W = y => y >= 6 ? 3 : y >= 3 ? 2 : y >= 1 ? 1 : 0;
-  Promise.all([jOpt("data/static/s1_province.json", "s8"), jOpt("data/static/s1_province_hex.json", "s8")]).then(([a, b]) => {
+  jOpt("data/static/s1_province.json", "s8").then(a => Promise.all([a, ptS1Hex(a).then(b => b || jOpt("data/static/s1_province_hex.json", "s8"))])).then(([a, b]) => {
     S.ph = a; S.phHex = b && a && b.n === (S.params?.n ?? b.n) ? b : null;
     renderHist(); if (S.meta && S.status) renderSimple(); if (S.mode === "hist") { histOverlay(true); renderLegend(); }
   });
   let tamP = null;
   function loadTam() {
-    if (!tamP) tamP = jOpt("data/static/tambon_web.geojson", "s8").then(g => {
+    if (!tamP) tamP = ptTam(S.ph).then(g => g || jOpt("data/static/tambon_web.geojson", "s8")).then(g => {
       if (!g) return null;
       S.phTam = L.geoJSON(g, { renderer, style: () => ({ color: "#7c2d12", weight: .8, opacity: .55, fill: true, fillOpacity: 0 }),
         onEachFeature: (f, l) => {
@@ -840,6 +913,7 @@
         <li>${ok("thaiwater_level")} ThaiWater ระดับน้ำ ${src.thaiwater_level?.stations ?? "–"} สถานี</li>
         <li>${ok("upstream")} ลุ่มน้ำต้นน้ำ ${src.upstream?.zones ?? "–"} zones · ${src.upstream?.entries ?? "–"} จุดน้ำเข้า</li>
         <li>${ok("gistda")} GISTDA น้ำท่วมจากดาวเทียม ${src.gistda?.ok ? src.gistda.features + " แปลง" : "(" + (src.gistda?.error || "ปิด") + ")"}</li>
+        <li>${PT.cfg ? (ptOn() ? "✅" : "⚠️") : "–"} ArcGIS Enterprise Portal (${PT.cfg ? new URL(PT.cfg.portal).host : "ปิด"}) — แผนที่ราย hex ${PT.src.status === "portal" ? "จาก Portal" : "จากไฟล์สำรอง"}${PT.src.s1hex === "portal" ? " · น้ำขังนาน S1 จาก Portal" : ""}${PT.err && !ptOn() ? ` <span class="note">(${PT.err})</span>` : ""}${PT.cfg?.dashboard ? ` · <a href="${PT.cfg.portal}/apps/dashboards/${PT.cfg.dashboard}" target="_blank" rel="noopener">Dashboard</a>` : ""}${PT.cfg?.webmap ? ` · <a href="${PT.cfg.portal}/apps/mapviewer/index.html?webmap=${PT.cfg.webmap}" target="_blank" rel="noopener">Web Map</a>` : ""}</li>
         <li>${S.s1status?.ok ? "✅" : "⚠️"} Sentinel-1 SAR (Planetary Computer, ไม่ต้องใช้ key) ${S.s1status?.latest ? "ภาพล่าสุด " + new Date(S.s1status.latest.t_acq * 1000).toLocaleString("th-TH", { timeZone: "Asia/Bangkok", dateStyle: "medium", timeStyle: "short" }) + " · ท่วม " + S.s1status.latest.km2 + " กม² · " + S.s1status.records + " ภาพสะสม" : "(" + (S.s1status?.error || "ยังไม่มีภาพ") + ")"}</li></ul>
       <p class="note">โมเดล: ${m.model} · ใช้เวลา ${m.runtime_s} วินาที</p>
       <h4>ขั้นตอนวิเคราะห์</h4>
